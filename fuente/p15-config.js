@@ -1,0 +1,115 @@
+/* =====================================================================
+   CONFIGURACIÓN (taller, servicios, rubros financieros, usuarios,
+   avisos, fidelidad, copia de seguridad) y AUDITORÍA con cadena hash.
+   Las reglas viven en funciones cfg*: validan permiso antes de tocar nada.
+   ===================================================================== */
+const posInt=(v,min,max,label)=>{const n=Math.round(Number(String(v).replace(',','.')));if(!isFinite(n)||n<min||n>max)fail(label+' tiene que ser un número entre '+min+' y '+max+'.');return n;};
+function cfgShop(d){
+  need('config');const s=S.cfg.shop;
+  const name=txt(d.name,2,60,'El nombre del taller');
+  const mail=String(d.mail||'').trim();if(mail&&!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(mail))fail('El correo del taller no es válido.');
+  const rate=Math.round(d.rateHourCents);if(!isFinite(rate)||rate<=0)fail('El valor de la hora de trabajo tiene que ser mayor a cero.');
+  const w=posInt(d.warrantyDays,0,365,'La garantía'),q=posInt(d.quoteValidDays,1,60,'La vigencia del presupuesto'),sd=posInt(d.storedDays,1,365,'Los días de guarda'),cm=posInt(d.commissionPct,0,100,'La comisión');
+  Object.assign(s,{name,legal:String(d.legal||'').slice(0,80),cuit:String(d.cuit||'').slice(0,20),addr:String(d.addr||'').slice(0,100),wa:String(d.wa||'').slice(0,25),phone:String(d.phone||'').slice(0,25),mail,hours:String(d.hours||'').slice(0,120),fiscal:String(d.fiscal||'').slice(0,60)});
+  Object.assign(S.cfg,{rateHourCents:rate,warrantyDays:w,quoteValidDays:q,storedDays:sd,commissionPct:cm});
+  const terms=String(d.terms||'').trim();if(terms.length<20)fail('Los términos y condiciones son muy cortos.');S.cfg.terms=terms.slice(0,3000);S.cfg.termsConfirmed=!!d.termsConfirmed;
+  audit('CONFIG_TALLER',name);emitChange();
+}
+function serviceSave(d){
+  need('config');const name=txt(d.name,3,60,'El nombre del servicio');const price=Math.round(d.priceCents);if(!isFinite(price)||price<=0)fail('El precio del servicio tiene que ser mayor a cero.');
+  const est=posInt(d.estMin,5,2400,'El tiempo estimado'),wd=posInt(d.warrantyDays,0,365,'La garantía');
+  if(S.services.some(s=>s.id!==d.id&&s.name.toLowerCase()===name.toLowerCase()))fail('Ya existe un servicio con ese nombre.');
+  if(d.id){const s=S.services.find(x=>x.id===d.id);if(!s)fail('El servicio no existe.');Object.assign(s,{name,priceCents:price,estMin:est,warrantyDays:wd,active:d.active!==false});}
+  else S.services.push({id:nid('sv'),name,priceCents:price,estMin:est,warrantyDays:wd,active:true});
+  audit('SERVICIO_GUARDADO',name+' '+fmt(price));emitChange();
+}
+function rubroSave(d){
+  need('config');const name=txt(d.name,3,50,'El nombre del rubro');if(!RUBRO_TYPES[d.type])fail('Elegí si es de ingreso, egreso o ambos.');
+  if(S.rubros.some(r=>r.id!==d.id&&r.name.toLowerCase()===name.toLowerCase()))fail('Ya existe un rubro con ese nombre.');
+  if(d.id){const r=S.rubros.find(x=>x.id===d.id);if(!r||r.sys)fail('Ese rubro lo usa el sistema y no se modifica.');Object.assign(r,{name,type:d.type});}else S.rubros.push({id:nid('rb'),name,type:d.type,sys:false});
+  audit('RUBRO_GUARDADO',name);emitChange();
+}
+function userSave(d){
+  need('config');const name=txt(d.name,3,60,'El nombre');if(!ROLES[d.role])fail('Elegí un rol.');
+  const cm=d.commissionPct===''||d.commissionPct==null?null:posInt(d.commissionPct,0,100,'La comisión');
+  if(d.id){const u=userById(d.id);if(!u)fail('El usuario no existe.');
+    const activeAdmins=S.users.filter(x=>x.role==='admin'&&x.active!==false&&x.id!==u.id).length;if(u.role==='admin'&&(d.role!=='admin'||d.active===false)&&activeAdmins===0)fail('Tiene que quedar al menos un administrador activo.');
+    Object.assign(u,{name,role:d.role,active:d.active!==false,commissionPct:d.role==='tecnico'?cm:null});}
+  else S.users.push({id:nid('u'),name,role:d.role,active:true,commissionPct:d.role==='tecnico'?cm:null});
+  audit('USUARIO_GUARDADO',name+' ('+d.role+')');emitChange();
+}
+function notifCfgSave(type,patch){need('config');const r=S.cfg.notif[type];if(!r)fail('Aviso desconocido.');if(patch.on!=null)r.on=!!patch.on;if(patch.assignee!=null)r.assignee=!!patch.assignee;if(patch.roles)r.roles=patch.roles.filter(x=>ROLES[x]);audit('CONFIG_AVISO',type);emitChange();}
+function slaSave(map){need('config');for(const k of Object.keys(S.cfg.sla)){if(map[k]==null)continue;S.cfg.sla[k]=posInt(map[k],1,720,'El límite de '+ST[k].name);}audit('CONFIG_SLA','');emitChange();}
+function loyaltySave(d){need('config');const L=S.cfg.loyalty;L.on=!!d.on;L.goal=posInt(d.goal,2,30,'La meta de sellos');L.prize=txt(d.prize,3,80,'El premio');const m=Math.round(d.minCents);if(!isFinite(m)||m<0)fail('El importe mínimo no es válido.');L.minCents=m;audit('CONFIG_FIDELIDAD','');emitChange();}
+function msgsSave(d){need('config');for(const k of Object.keys(S.cfg.msgs)){const v=String(d[k]||'').trim();if(v.length<10)fail('El mensaje «'+k+'» es muy corto.');S.cfg.msgs[k]=v.slice(0,400);}audit('CONFIG_MENSAJES','');emitChange();}
+
+UI.tab.cfg='taller';
+const CFG_TABS=[['taller','Taller y precios'],['servicios','Servicios'],['rubros','Rubros de caja'],['usuarios','Usuarios'],['avisos','Avisos y plazos'],['textos','Fidelidad y mensajes'],['datos','Copia de seguridad']];
+SCREENS.config={title:'Configuración',perm:'config',view(){
+  const t=UI.tab.cfg;const body={taller:cfgTaller,servicios:cfgServicios,rubros:cfgRubros,usuarios:cfgUsuarios,avisos:cfgAvisos,textos:cfgTextos,datos:cfgDatos}[t]||cfgTaller;
+  return pageHead('Configuración','Lo que cambies acá queda en la auditoría.')+'<div class="tabs" role="tablist">'+CFG_TABS.map(x=>'<button type="button" role="tab" aria-selected="'+(t===x[0])+'" data-act="cfgTab" data-t="'+x[0]+'">'+esc(x[1])+'</button>').join('')+'</div>'+body();
+}};
+ACTS.cfgTab=el=>{UI.tab.cfg=el.dataset.t;renderView();};
+function cfgTaller(){const s=S.cfg.shop,c=S.cfg;
+  return '<div class="card"><div class="grid g2">'+fld('Nombre del taller','<input type="text" id="cs-n" maxlength="60" value="'+esc(s.name)+'">')+fld('Razón social','<input type="text" id="cs-l" maxlength="80" value="'+esc(s.legal)+'">')+fld('CUIT','<input type="text" id="cs-c" maxlength="20" value="'+esc(s.cuit)+'">')+fld('Condición fiscal','<input type="text" id="cs-f" maxlength="60" value="'+esc(s.fiscal)+'">')+fld('Dirección','<input type="text" id="cs-a" maxlength="100" value="'+esc(s.addr)+'">')+fld('Horario','<input type="text" id="cs-h" maxlength="120" value="'+esc(s.hours)+'">')+fld('WhatsApp del taller','<input type="text" id="cs-w" maxlength="25" value="'+esc(s.wa)+'">')+fld('Teléfono','<input type="text" id="cs-p" maxlength="25" value="'+esc(s.phone)+'">')+fld('Correo','<input type="email" id="cs-m" maxlength="80" value="'+esc(s.mail)+'">')
+    +fld('Valor de la hora de trabajo ($)','<input type="text" inputmode="decimal" data-money id="cs-r" value="'+esc(moneyVal(c.rateHourCents))+'">')+fld('Garantía de reparación (días)','<input type="text" inputmode="numeric" id="cs-g" value="'+c.warrantyDays+'">')+fld('Vigencia del presupuesto (días)','<input type="text" inputmode="numeric" id="cs-q" value="'+c.quoteValidDays+'">')+fld('Días de guarda sin retirar','<input type="text" inputmode="numeric" id="cs-d" value="'+c.storedDays+'">')+fld('Comisión técnica por defecto (%)','<input type="text" inputmode="numeric" id="cs-k" value="'+c.commissionPct+'">')+'</div>'
+    +fld('Términos y condiciones de la recepción','<textarea id="cs-t" rows="6" maxlength="3000">'+esc(c.terms)+'</textarea>','Texto de ejemplo: debe revisarlo un profesional antes de usarlo.')
+    +'<label class="chk"><input type="checkbox" id="cs-tc"'+(c.termsConfirmed?' checked':'')+'><span>Un profesional revisó estos términos y están vigentes</span></label><div class="row" style="margin-top:12px"><button type="button" class="btn p" data-act="cfgShopSave">Guardar</button></div></div>';}
+ACTS.cfgShopSave=()=>{const r=moneyIn($('#cs-r').value);if(isNaN(r))return toast('El valor de la hora no es un número.','bad');run(()=>cfgShop({name:$('#cs-n').value,legal:$('#cs-l').value,cuit:$('#cs-c').value,fiscal:$('#cs-f').value,addr:$('#cs-a').value,hours:$('#cs-h').value,wa:$('#cs-w').value,phone:$('#cs-p').value,mail:$('#cs-m').value,rateHourCents:r,warrantyDays:$('#cs-g').value,quoteValidDays:$('#cs-q').value,storedDays:$('#cs-d').value,commissionPct:$('#cs-k').value,terms:$('#cs-t').value,termsConfirmed:$('#cs-tc').checked}),'Configuración guardada.');};
+function cfgServicios(){
+  return '<div class="card"><div class="row spread"><h3 style="margin:0">Catálogo de servicios (mano de obra)</h3><button type="button" class="btn p" data-act="svcEdit">'+ic('plus',16)+'Nuevo servicio</button></div>'+tableWrap('<table class="tbl"><thead><tr><th scope="col">Servicio</th><th scope="col" class="r">Precio</th><th scope="col" class="r hide-sm">Tiempo est.</th><th scope="col" class="r hide-sm">Garantía</th><th scope="col">Estado</th><th scope="col"><span class="sr-only">Editar</span></th></tr></thead><tbody>'+S.services.map(s=>'<tr><td><b>'+esc(s.name)+'</b></td><td class="r num">'+esc(fmt(s.priceCents))+'</td><td class="r num hide-sm">'+esc(dur(s.estMin*MIN))+'</td><td class="r num hide-sm">'+s.warrantyDays+' d</td><td>'+(s.active===false?badge('Inactivo',''):badge('Activo','ok'))+'</td><td><button type="button" class="btn xs" data-act="svcEdit" data-id="'+s.id+'">Editar</button></td></tr>').join('')+'</tbody></table>')+'</div>';}
+ACTS.svcEdit=el=>{const s=el.dataset.id?S.services.find(x=>x.id===el.dataset.id):{name:'',priceCents:0,estMin:'',warrantyDays:S.cfg.warrantyDays,active:true};
+  modal({title:s.id?'Editar servicio':'Nuevo servicio',small:true,html:fld('Nombre','<input type="text" id="sv-n" maxlength="60" value="'+esc(s.name)+'">')+fld('Precio ($)','<input type="text" inputmode="decimal" data-money id="sv-p" placeholder="Precio de la mano de obra" value="'+esc(moneyVal(s.priceCents))+'">')+fld('Tiempo estimado (minutos)','<input type="text" inputmode="numeric" id="sv-e" value="'+esc(s.estMin)+'">')+fld('Garantía (días)','<input type="text" inputmode="numeric" id="sv-g" value="'+esc(s.warrantyDays)+'">')+(s.id&&s.id!=='svc-diag'?'<label class="chk"><input type="checkbox" id="sv-a"'+(s.active!==false?' checked':'')+'><span>Activo (se ofrece al presupuestar)</span></label>':''),
+    buttons:[{label:'Cancelar'},{label:'Guardar',cls:'p',onClick:h=>{const p=moneyIn(h.$('#sv-p').value);if(isNaN(p))throw new VBErr('El precio no es un número.');serviceSave({id:s.id||null,name:h.$('#sv-n').value,priceCents:p,estMin:h.$('#sv-e').value,warrantyDays:h.$('#sv-g').value,active:h.$('#sv-a')?h.$('#sv-a').checked:true});toast('Servicio guardado.','ok');}}]});};
+function cfgRubros(){return '<div class="card"><div class="row spread"><h3 style="margin:0">Rubros financieros</h3><button type="button" class="btn p" data-act="rubEdit">'+ic('plus',16)+'Nuevo rubro</button></div><p class="mut sm">Todo movimiento de caja lleva rubro. Los marcados «sistema» se usan automáticamente y no se editan.</p>'+tableWrap('<table class="tbl"><thead><tr><th scope="col">Rubro</th><th scope="col">Tipo</th><th scope="col"><span class="sr-only">Editar</span></th></tr></thead><tbody>'+S.rubros.map(r=>'<tr><td>'+esc(r.name)+(r.sys?' '+badge('sistema',''):'')+'</td><td>'+esc(RUBRO_TYPES[r.type])+'</td><td>'+(r.sys?'':'<button type="button" class="btn xs" data-act="rubEdit" data-id="'+r.id+'">Editar</button>')+'</td></tr>').join('')+'</tbody></table>')+'</div>';}
+ACTS.rubEdit=el=>{const r=el.dataset.id?S.rubros.find(x=>x.id===el.dataset.id):{name:'',type:'egreso'};modal({title:r.id?'Editar rubro':'Nuevo rubro',small:true,html:fld('Nombre','<input type="text" id="rb-n" maxlength="50" value="'+esc(r.name)+'">')+fld('Tipo','<select id="rb-t">'+opts(Object.entries(RUBRO_TYPES),r.type)+'</select>'),buttons:[{label:'Cancelar'},{label:'Guardar',cls:'p',onClick:h=>{rubroSave({id:r.id||null,name:h.$('#rb-n').value,type:h.$('#rb-t').value});toast('Rubro guardado.','ok');}}]});};
+function cfgUsuarios(){return '<div class="card"><div class="row spread"><h3 style="margin:0">Usuarios del taller</h3><button type="button" class="btn p" data-act="usrEdit">'+ic('plus',16)+'Nuevo usuario</button></div><p class="mut sm">En esta demo no hay contraseñas. En la versión del cliente cada usuario ingresa con correo y contraseña propios.</p>'+tableWrap('<table class="tbl"><thead><tr><th scope="col">Nombre</th><th scope="col">Rol</th><th scope="col" class="hide-sm">Comisión</th><th scope="col">Estado</th><th scope="col"><span class="sr-only">Editar</span></th></tr></thead><tbody>'+S.users.map(u=>'<tr><td><b>'+esc(u.name)+'</b></td><td>'+esc(ROLES[u.role].label)+'</td><td class="hide-sm">'+(u.role==='tecnico'?(u.commissionPct==null?S.cfg.commissionPct+' % (general)':u.commissionPct+' %'):'—')+'</td><td>'+(u.active===false?badge('Inactivo',''):badge('Activo','ok'))+'</td><td><button type="button" class="btn xs" data-act="usrEdit" data-id="'+u.id+'">Editar</button></td></tr>').join('')+'</tbody></table>')+'</div>';}
+ACTS.usrEdit=el=>{const u=el.dataset.id?userById(el.dataset.id):{name:'',role:'tecnico',active:true,commissionPct:null};modal({title:u.id?'Editar usuario':'Nuevo usuario',small:true,html:fld('Nombre','<input type="text" id="us-n" maxlength="60" value="'+esc(u.name)+'">')+fld('Rol','<select id="us-r">'+opts(Object.entries(ROLES).map(([k,v])=>[k,v.label]),u.role)+'</select>')+fld('Comisión (%) · sólo técnicos','<input type="text" inputmode="numeric" id="us-c" placeholder="Usar la general" value="'+esc(u.commissionPct==null?'':u.commissionPct)+'">')+(u.id?'<label class="chk"><input type="checkbox" id="us-a"'+(u.active!==false?' checked':'')+'><span>Activo</span></label>':''),buttons:[{label:'Cancelar'},{label:'Guardar',cls:'p',onClick:h=>{userSave({id:u.id||null,name:h.$('#us-n').value,role:h.$('#us-r').value,commissionPct:h.$('#us-c').value.trim(),active:h.$('#us-a')?h.$('#us-a').checked:true});toast('Usuario guardado.','ok');}}]});};
+function cfgAvisos(){
+  const nr=Object.keys(S.cfg.notif);
+  return '<div class="card"><h3>Avisos internos automáticos</h3><p class="mut sm">Elegí qué avisos se generan y quién los recibe. «Responsable» = el técnico de esa orden.</p>'+tableWrap('<table class="tbl"><thead><tr><th scope="col">Aviso</th><th scope="col">Activo</th>'+Object.keys(ROLES).map(r=>'<th scope="col">'+esc(ROLES[r].label.split(' ')[0])+'</th>').join('')+'<th scope="col">Responsable</th></tr></thead><tbody>'+nr.map(k=>{const r=S.cfg.notif[k];return '<tr><td>'+esc(NOTIF_LABEL[k]||k)+'</td><td><input type="checkbox" data-chg="nfOn" data-k="'+k+'"'+(r.on?' checked':'')+' aria-label="Activar '+esc(NOTIF_LABEL[k]||k)+'"></td>'+Object.keys(ROLES).map(ro=>'<td><input type="checkbox" data-chg="nfRole" data-k="'+k+'" data-r="'+ro+'"'+(r.roles.includes(ro)?' checked':'')+' aria-label="'+esc(NOTIF_LABEL[k]||k)+' para '+esc(ROLES[ro].label)+'"></td>').join('')+'<td><input type="checkbox" data-chg="nfAsg" data-k="'+k+'"'+(r.assignee?' checked':'')+' aria-label="'+esc(NOTIF_LABEL[k]||k)+' al responsable"></td></tr>';}).join('')+'</tbody></table>')+'</div>'
+   +'<div class="card" style="margin-top:16px"><h3>Plazos máximos por estado (horas)</h3><p class="mut sm">Pasado el plazo, la orden figura como atrasada y se avisa.</p><div class="grid g3">'+Object.keys(S.cfg.sla).map(k=>fld(ST[k].name,'<input type="text" inputmode="numeric" data-sla="'+k+'" value="'+S.cfg.sla[k]+'">')).join('')+'</div><div class="row" style="margin-top:10px"><button type="button" class="btn p" data-act="slaSave">Guardar plazos</button></div></div>';}
+CHG.nfOn=el=>run(()=>notifCfgSave(el.dataset.k,{on:el.checked}));
+CHG.nfAsg=el=>run(()=>notifCfgSave(el.dataset.k,{assignee:el.checked}));
+CHG.nfRole=el=>{const r=S.cfg.notif[el.dataset.k];const set=new Set(r.roles);if(el.checked)set.add(el.dataset.r);else set.delete(el.dataset.r);run(()=>notifCfgSave(el.dataset.k,{roles:[...set]}));};
+ACTS.slaSave=()=>{const m={};$$('[data-sla]').forEach(i=>m[i.dataset.sla]=i.value);run(()=>slaSave(m),'Plazos guardados.');};
+function cfgTextos(){const L=S.cfg.loyalty,M=S.cfg.msgs;
+  return '<div class="card"><h3>Fidelización por sellos</h3><label class="chk"><input type="checkbox" id="lo-on"'+(L.on?' checked':'')+'><span>Activar sellos</span></label><div class="grid g3">'+fld('Sellos para el premio','<input type="text" inputmode="numeric" id="lo-g" value="'+L.goal+'">')+fld('Premio','<input type="text" id="lo-p" maxlength="80" value="'+esc(L.prize)+'">')+fld('Importe mínimo por reparación ($)','<input type="text" inputmode="decimal" data-money id="lo-m" value="'+esc(moneyVal(L.minCents))+'">')+'</div><div class="row" style="margin-top:10px"><button type="button" class="btn p" data-act="loSave">Guardar</button></div></div>'
+   +'<div class="card" style="margin-top:16px"><h3>Mensajes de WhatsApp para el cliente</h3><p class="mut sm">Variables: {cliente} {equipo} {ot} {taller} {total} {vence} {saldo} {horario}. Se abren en WhatsApp para enviarlos a mano.</p>'+Object.keys(M).map(k=>fld({recibido:'Equipo recibido',presupuesto:'Presupuesto',listo:'Listo para retirar',demora:'Aviso de demora'}[k]||k,'<textarea data-msg="'+k+'" rows="2" maxlength="400">'+esc(M[k])+'</textarea>')).join('')+'<div class="row" style="margin-top:10px"><button type="button" class="btn p" data-act="msgSave">Guardar mensajes</button></div></div>';}
+ACTS.loSave=()=>{const m=moneyIn($('#lo-m').value);if(isNaN(m))return toast('El importe mínimo no es un número.','bad');run(()=>loyaltySave({on:$('#lo-on').checked,goal:$('#lo-g').value,prize:$('#lo-p').value,minCents:m}),'Fidelización guardada.');};
+ACTS.msgSave=()=>{const m={};$$('[data-msg]').forEach(i=>m[i.dataset.msg]=i.value);run(()=>msgsSave(m),'Mensajes guardados.');};
+
+/* ---- copia de seguridad ---- */
+function backupJson(){need('config');const copy=JSON.parse(JSON.stringify(S));return JSON.stringify({app:'clinica-pc',build:APP.build,exportedAt:now(),state:copy});}
+function backupRestore(text){
+  need('config');let o;try{o=JSON.parse(text);}catch(e){fail('El archivo no es una copia de seguridad válida (no se puede leer).');}
+  if(!o||o.app!=='clinica-pc'||!o.state||typeof o.state!=='object')fail('El archivo no es una copia de seguridad de este sistema.');
+  const st=o.state;for(const k of ['users','clients','devices','orders','items','moves','payments','audit'])if(!Array.isArray(st[k]))fail('La copia está incompleta o dañada ('+k+').');
+  if(!st.cash||!Array.isArray(st.cash.sessions))fail('La copia está incompleta o dañada (caja).');
+  if(!st.users.some(u=>u.role==='admin'&&u.active!==false))fail('La copia no tiene ningún administrador activo.');
+  return migrate(st);
+}
+function cfgDatos(){
+  return '<div class="grid g2"><div class="card"><h3>Copia de seguridad</h3><p class="mut sm">Los datos viven en este navegador. Descargá una copia periódicamente: si borrás los datos del navegador, se pierden.</p><div class="row"><button type="button" class="btn p" data-act="bkExport">'+ic('download',18)+'Descargar copia (.json)</button></div>'
+   +'<h4 style="margin:16px 0 6px">Restaurar</h4><p class="mut sm">Reemplaza TODOS los datos actuales por los del archivo. Se valida antes de aplicar.</p><div class="field"><label for="bk-f">Archivo de copia</label><input type="file" id="bk-f" accept=".json,application/json" data-chg="bkFile"></div></div>'
+   +'<div class="card"><h3>Datos de ejemplo</h3><p class="mut sm">Esta versión es una demo con datos de ejemplo. Podés volver al estado inicial cuando quieras.</p><button type="button" class="btn d" data-act="bkReset">Reiniciar la demo…</button></div></div>';}
+ACTS.bkExport=()=>run(()=>{downloadText('copia-clinica-pc-'+dayKey(now())+'.json',backupJson(),'application/json');audit('COPIA_EXPORTADA','');saveNow();},'Copia descargada.');
+CHG.bkFile=el=>{const f=el.files&&el.files[0];if(!f)return;if(f.size>40*1024*1024){toast('El archivo es demasiado grande.','bad');return;}const rd=new FileReader();rd.onload=()=>{let st;try{st=backupRestore(String(rd.result));}catch(e){if(e instanceof VBErr){toast(e.message,'bad');el.value='';return;}throw e;}
+    confirmBox({title:'Restaurar copia',html:'Se van a reemplazar <b>todos</b> los datos actuales: '+st.orders.length+' órdenes, '+st.clients.length+' clientes, '+st.items.length+' artículos. No se puede deshacer.',confirmWord:'RESTAURAR',danger:true,ok:'Restaurar',onOk:()=>{S=st;if(!userById(SESSION.uid))SESSION.uid=(S.users.find(u=>u.role==='admin'&&u.active!==false)||S.users[0]).id;audit('COPIA_RESTAURADA','');saveNow();toast('Copia restaurada.','ok');renderApp();}});};
+  rd.onerror=()=>toast('No se pudo leer el archivo.','bad');rd.readAsText(f);};
+ACTS.bkReset=()=>confirmBox({title:'Reiniciar la demo',html:'Se borra todo lo que cargaste y vuelven los datos de ejemplo.',confirmWord:'REINICIAR',danger:true,ok:'Reiniciar',onOk:()=>{need('config');resetDemo();}});
+
+/* ---------- Auditoría ---------- */
+UI.f.aud={q:'',res:null};
+SCREENS.auditoria={title:'Auditoría',perm:'audit',view(){
+  const v=UI.f.aud.res;const q=UI.f.aud.q.trim().toLowerCase();
+  return pageHead('Auditoría','Registro encadenado: cada entrada incluye la huella de la anterior. Si alguien altera una, la cadena se rompe.','<button type="button" class="btn p" data-act="audVerify">'+ic('shield',18)+'Verificar cadena</button>')
+   +(v?(v.ok?'<div class="alert ok" role="status">'+ic('check',18)+'La cadena está íntegra: '+v.total+' registros verificados.</div>':'<div class="alert bad" role="alert">'+ic('alert',18)+'La cadena se rompe en el registro #'+v.at+' de '+v.total+'. Hubo una alteración.</div>'):'')
+   +'<div class="card flat" style="margin-bottom:14px"><div class="field"><label class="sr-only" for="au-q">Filtrar</label><input type="search" id="au-q" placeholder="Filtrar por acción, detalle o usuario…" value="'+esc(UI.f.aud.q)+'" data-inp="audQ"></div></div><div class="card">'+region('aud-t',()=>audTable(q))+'</div>';
+}};
+function audTable(q){
+  const all=S.audit.filter(e=>!q||(e.action+' '+e.detail+' '+userName(e.uid)).toLowerCase().includes(q));const rows=sortRows('aud',all,{n:e=>e.n,ts:e=>e.ts,uid:e=>userName(e.uid),ac:e=>e.action,de:e=>e.detail},{key:'n',dir:'desc'}).slice(0,200);
+  return '<p class="mut sm" style="margin-top:0">'+all.length+' registro'+(all.length===1?'':'s')+(all.length>200?' (se muestran los 200 primeros del orden elegido)':'')+'</p>'+tableWrap('<table class="tbl"><thead><tr>'+sortHead('aud','n','N.º')+sortHead('aud','ts','Fecha')+sortHead('aud','uid','Usuario','hide-sm')+sortHead('aud','ac','Acción')+sortHead('aud','de','Detalle')+'<th scope="col" class="hide-sm">Huella</th></tr></thead><tbody>'+rows.map(e=>'<tr><td>'+e.n+'</td><td class="nowrap">'+esc(fdt(e.ts))+'</td><td class="hide-sm">'+esc(e.uid==='sistema'?'Sistema':userName(e.uid))+'</td><td><span class="mono xs">'+esc(e.action)+'</span></td><td>'+esc(e.detail)+'</td><td class="hide-sm mono xs mut">'+esc(e.hash.slice(0,10))+'</td></tr>').join('')+'</tbody></table>');
+}
+INP.audQ=el=>{UI.f.aud.q=el.value;UI.region('aud-t');};
+ACTS.audVerify=()=>{UI.f.aud.res=auditVerify();renderView();};

@@ -1,0 +1,37 @@
+/* =====================================================================
+   ASISTENTE INTERNO: responde consultas de SOLO LECTURA con reglas de
+   texto (no es una IA ni se conecta a ningún servicio). Respeta el rol:
+   no muestra costos ni cobranzas a quien no tiene permiso.
+   ===================================================================== */
+const ASSIST=[];
+function assistRule(name,re,perm,fn,hint){ASSIST.push({name,re,perm,fn,hint});}
+const A_LINK=(to,label)=>'<a class="btn xs" href="#panel/'+to+'">'+esc(label)+'</a>';
+assistRule('stock',/stock|falta(n)?\b|reponer|repuestos? bajos?/i,null,()=>{const l=lowItems();return l.length?{t:l.length+' artículo(s) con stock bajo o negativo:\n'+l.slice(0,8).map(i=>'• '+i.name+': '+fq(stockOf(i.id))+' (mínimo '+fq(i.min)+')').join('\n'),link:['inventario','Abrir inventario']}:{t:'No hay artículos por debajo del mínimo.'};},'«¿Qué stock está bajo?»');
+assistRule('atrasadas',/atrasad|demora|retras/i,null,()=>{const l=lateOrders();return l.length?{t:l.length+' orden(es) atrasada(s):\n'+l.slice(0,8).map(o=>'• '+otCode(o)+' '+devLabel(orderDev(o))+' — '+ST[o.status].name+' hace '+dur(now()-o.stateSince)).join('\n'),link:['ordenes','Abrir el taller']}:{t:'No hay órdenes atrasadas.'};},'«¿Qué órdenes están atrasadas?»');
+assistRule('listos',/list[oa]s?\b|retirar|para entregar/i,null,()=>{const l=S.orders.filter(o=>o.status==='listo');return l.length?{t:l.length+' equipo(s) listo(s) para retirar:\n'+l.map(o=>'• '+otCode(o)+' '+devLabel(orderDev(o))+' — '+clientName(o.clientId)).join('\n'),link:['ordenes','Abrir el taller']}:{t:'No hay equipos listos para retirar.'};},'«¿Qué equipos están listos?»');
+assistRule('aprobacion',/aprobaci|esperando|presupuestos? pendientes?/i,null,()=>{const l=S.orders.filter(o=>o.status==='aprobacion');return l.length?{t:l.length+' presupuesto(s) esperando al cliente:\n'+l.map(o=>'• '+otCode(o)+' '+clientName(o.clientId)+(o.quote.validUntil?' (vence '+fdate(o.quote.validUntil)+')':'')).join('\n')}:{t:'No hay presupuestos esperando aprobación.'};},'«¿Qué presupuestos esperan aprobación?»');
+assistRule('caja',/\bcaja\b|efectivo/i,'cash',()=>{const s=openSession();if(!s)return {t:'La caja está cerrada.',link:['caja','Ir a Caja']};const a=arqueoCalc(s);return {t:'Caja #'+s.n+' abierta desde '+fdt(s.openedAt)+'.\nEfectivo esperado: '+fmt(a.efectivoEsperado)+'\nCobrado en total: '+fmt(a.cobradoReal)+(a.pendienteDigital?'\nCobros digitales sin verificar: '+fmt(a.pendienteDigital):''),link:['caja','Ir a Caja']};},'«¿Cómo está la caja?»');
+assistRule('hoy',/hoy|cobr(ado|amos|ó)|ingres(ó|os)|factur/i,'payments',()=>{const [a,b]=periodRange('hoy');const c=cobradoIn(a,b),r=revenueIn(a,b);return {t:'Hoy: cobrado '+fmt(c)+' (verificado, sin cuenta corriente).\nReparaciones entregadas: '+r.cnt+' ('+fmt(r.svc)+'). Ventas de mostrador: '+fmt(r.sales)+'.'};},'«¿Cuánto cobramos hoy?»');
+assistRule('deuda',/deud|cuenta corriente|fiado/i,'payments',()=>{const l=S.clients.filter(c=>!c.anon&&ccBalance(c.id)>0).sort((a,b)=>ccBalance(b.id)-ccBalance(a.id));return l.length?{t:'Deuda de clientes: '+fmt(ccTotal())+'\n'+l.slice(0,6).map(c=>'• '+c.name+': '+fmt(ccBalance(c.id))).join('\n'),link:['clientes','Ver clientes']}:{t:'Ningún cliente tiene deuda.'};},'«¿Quién nos debe?»');
+assistRule('margen',/margen|rentab|ganancia/i,'view_reports',()=>{const [a,b]=periodRange('30');const m=marginIn(a,b);return {t:'Últimos 30 días: ingresos '+fmt(m.rev)+', costo de repuestos '+fmt(m.cost)+', margen bruto '+fmt(m.margin)+(m.rev?' ('+String(pct(m.margin,m.rev)).replace('.',',')+' %)':'')+'.\nEs margen bruto: no descuenta sueldos ni gastos fijos.',link:['reportes','Ver reportes']};},'«¿Cuál es el margen?»');
+assistRule('tecnicos',/t[eé]cnicos?|carga de trabajo|qui[eé]n (est[aá]|tiene)/i,'assign',()=>({t:techs().map(t=>{const n=S.orders.filter(o=>o.techId===t.id&&!ST[o.status].terminal).length;const r=runningTimer(t.id);return '• '+t.name+': '+n+' orden(es)'+(r?' · cronómetro en '+otCode(r.order):'');}).join('\n')+'\nSin técnico: '+S.orders.filter(o=>!o.techId&&!ST[o.status].terminal).length,link:['equipo','Ver equipo']}),'«¿Cómo está la carga de los técnicos?»');
+assistRule('orden',/(?:ot|orden)[\s\-#]*0*(\d{1,6})/i,null,(m)=>{const o=S.orders.find(x=>x.n===+m[1]);if(!o)return {t:'No encuentro la orden '+m[1]+'.'};const op=orderPay(o);return {t:otCode(o)+' · '+devLabel(orderDev(o))+'\nEstado: '+ST[o.status].name+' (hace '+dur(now()-o.stateSince)+')\nTécnico: '+(o.techId?userName(o.techId):'sin asignar')+(can('payments')?'\nTotal '+fmt(op.total)+' · saldo '+fmt(Math.max(0,op.due)):''),link:['orden/'+o.id,'Abrir '+otCode(o)]};},'«Estado de la OT 12»');
+assistRule('ayuda',/ayuda|qu[eé] pod[eé]s|comandos|hola/i,null,()=>{const l=ASSIST.filter(r=>r.hint&&(!r.perm||can(r.perm)));return {t:'Soy un asistente de consulta con reglas simples (no es una IA). Probá con:\n'+l.map(r=>'• '+r.hint).join('\n')+'\nNo modifico nada: sólo muestro información.'};});
+function assistAnswer(q){
+  q=String(q||'').trim().slice(0,200);if(!q)return {t:'Escribí una consulta. Probá con «ayuda».'};
+  for(const r of ASSIST){const m=r.re.exec(q);if(!m)continue;if(r.perm&&!can(r.perm))return {t:'Tu rol ('+ROLES[curUser().role].label+') no tiene acceso a esa información.'};return r.fn(m);}
+  return {t:'No entendí la consulta. Escribí «ayuda» para ver qué puedo responder.'};
+}
+function assistantShell(){
+  return '<div class="assist"><button type="button" class="btn p lg" data-act="assistToggle" aria-expanded="'+UI.assistOpen+'" aria-controls="apanel">'+ic('spark',20)+'Asistente</button></div>'
+   +'<section class="apanel'+(UI.assistOpen?'':' hide')+'" id="apanel" role="dialog" aria-label="Asistente de consultas"><div class="row spread" style="padding:10px 12px;border-bottom:1px solid var(--line)"><b>Asistente de consultas</b><button type="button" class="btn g ibtn" data-act="assistToggle" aria-label="Cerrar asistente">'+ic('x')+'</button></div><div class="log" id="alog" aria-live="polite"><div class="msg a">Hola, soy un asistente de consulta (reglas simples, no una IA). Escribí «ayuda» para ver qué puedo responder.</div></div><form id="aform" class="row" style="padding:10px;border-top:1px solid var(--line);flex-wrap:nowrap" autocomplete="off"><label class="sr-only" for="ain">Consulta</label><input type="text" id="ain" class="grow" maxlength="200" placeholder="Ej.: ¿qué stock está bajo?"><button type="submit" class="btn p">Enviar</button></form></section>';
+}
+function assistantBind(){
+  const f=$('#aform');if(!f)return;
+  f.addEventListener('submit',e=>{e.preventDefault();const i=$('#ain');const q=i.value;if(!q.trim())return;const log=$('#alog');
+    const u=document.createElement('div');u.className='msg u';u.textContent=q;log.appendChild(u);i.value='';
+    let r;try{r=assistAnswer(q);}catch(x){console.error(x);r={t:'No pude responder eso.'};}
+    const a=document.createElement('div');a.className='msg a';a.textContent=r.t;if(r.link){const l=document.createElement('div');l.style.marginTop='6px';l.innerHTML=A_LINK(r.link[0],r.link[1]);a.appendChild(l);}
+    log.appendChild(a);log.scrollTop=log.scrollHeight;});
+}
+ACTS.assistToggle=()=>{UI.assistOpen=!UI.assistOpen;const p=$('#apanel');if(p)p.classList.toggle('hide',!UI.assistOpen);$$('[data-act=assistToggle][aria-expanded]').forEach(b=>b.setAttribute('aria-expanded',String(UI.assistOpen)));if(UI.assistOpen){const i=$('#ain');if(i)setTimeout(()=>i.focus(),30);}};

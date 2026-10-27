@@ -1,0 +1,27 @@
+/* =====================================================================
+   EQUIPO (carga de trabajo por técnico) y NOTIFICACIONES internas.
+   ===================================================================== */
+SCREENS.equipo={title:'Equipo técnico',perm:'assign',view(){
+  const ts=techs();const act=S.orders.filter(o=>!ST[o.status].terminal);const free=act.filter(o=>!o.techId);
+  const card=t=>{const mine=act.filter(o=>o.techId===t.id);const run=runningTimer(t.id);const tasks=mine.flatMap(o=>o.tasks.filter(k=>!k.done&&k.techId===t.id).map(k=>({o,k})));const loans=S.loans.filter(l=>l.techId===t.id&&!l.returnedAt);
+    const hrs=sum(S.orders,o=>sum(o.timeLog.filter(l=>l.techId===t.id&&l.start>=startOfDay(now())-6*DAY),l=>(l.end||now())-l.start));
+    return '<div class="card"><div class="row spread"><div class="row"><span class="ava" aria-hidden="true">'+esc(initials(t.name))+'</span><div><b>'+esc(t.name)+'</b><br><small class="mut">'+mine.length+' orden'+(mine.length===1?'':'es')+' abiertas · '+tasks.length+' tarea'+(tasks.length===1?'':'s')+' pendientes</small></div></div>'+(run?'<span class="badge teal">'+ic('play',10)+' '+esc(otCode(run.order))+' <span data-timer="'+run.order.id+'" data-tech="'+t.id+'">'+clock(orderMs(run.order,t.id))+'</span></span>':'<span class="badge">Sin cronómetro</span>')+'</div>'
+     +'<div class="stepper" style="margin:10px 0" aria-label="Órdenes por estado">'+['pendiente','diagnostico','aprobacion','proceso','prueba','listo'].map(k=>{const n=mine.filter(o=>o.status===k).length;return '<span class="s" title="'+esc(ST[k].name)+'">'+esc(ST[k].name.split(' ')[0])+' <b>'+n+'</b></span>';}).join('')+'</div>'
+     +(mine.length?'<ul style="margin:0;padding-left:18px">'+mine.slice(0,6).map(o=>'<li><a href="#panel/orden/'+o.id+'">'+esc(otCode(o))+'</a> '+esc(devLabel(orderDev(o)))+' '+stBadge(o.status)+(isLate(o)?' '+badge('Atrasada','bad'):'')+'</li>').join('')+(mine.length>6?'<li class="mut">y '+(mine.length-6)+' más…</li>':'')+'</ul>':'<p class="mut" style="margin:0">Sin órdenes asignadas.</p>')
+     +'<p class="mut sm" style="margin:10px 0 0">Horas registradas últimos 7 días: <b>'+esc(dur(hrs))+'</b>'+(loans.length?' · Herramientas: '+esc(loans.map(l=>getItem(l.itemId).name).join(', ')):'')+'</p></div>';};
+  return pageHead('Equipo técnico','Quién tiene qué, qué cronómetros están corriendo y qué espera técnico.')
+   +(free.length?'<div class="card" style="margin-bottom:16px"><h3>Sin técnico asignado ('+free.length+')</h3><div class="tbl-wrap"><table class="tbl"><thead><tr><th scope="col">Orden</th><th scope="col">Equipo</th><th scope="col">Estado</th><th scope="col"><span class="sr-only">Asignar</span></th></tr></thead><tbody>'+free.map(o=>'<tr><td><a href="#panel/orden/'+o.id+'">'+esc(otCode(o))+'</a></td><td>'+esc(devLabel(orderDev(o)))+'<br><small class="mut">'+esc(o.intake.fault.slice(0,70))+'</small></td><td>'+stBadge(o.status)+'</td><td><button type="button" class="btn xs p" data-act="ordAssign" data-id="'+o.id+'">Asignar</button></td></tr>').join('')+'</tbody></table></div></div>':'<div class="alert ok" style="margin-bottom:16px">'+ic('check',18)+'Todas las órdenes abiertas tienen técnico.</div>')
+   +'<div class="grid g2">'+ts.map(card).join('')+'</div>';
+}};
+
+/* ---------- Notificaciones ---------- */
+SCREENS.notificaciones={title:'Notificaciones',view(){
+  const u=curUser();const ns=myNotifs(u).slice(0,80);const un=unreadCount(u);
+  const ICN={orden_nueva:'plus',estado_cambio:'arrow',listo:'check',presupuesto_aprobado:'check',presupuesto_rechazado:'x',requerimiento:'wrench',stock_bajo:'box',tarea_asignada:'user',atraso:'clock',sin_retirar:'clock',caja_diferencia:'cash',cobro_pendiente:'cash'};
+  return pageHead('Notificaciones','Avisos internos automáticos para tu rol. No se envían por fuera del sistema.',un?'<button type="button" class="btn" data-act="ntAll">Marcar todo como leído</button>':'')
+   +'<div class="card">'+(ns.length?ns.map(n=>{const rd=n.readBy.includes(u.id);return '<div class="row" style="flex-wrap:nowrap;padding:10px 0;border-bottom:1px solid var(--line);'+(rd?'opacity:.7':'')+'"><span aria-hidden="true" style="color:var(--c1)">'+ic(ICN[n.type]||'bell',20)+'</span><div class="grow"><div><b>'+esc(n.title)+'</b>'+(rd?'':' '+badge('Nuevo','teal'))+'</div><div class="sm">'+esc(n.body)+'</div><div class="mut xs">'+esc(NOTIF_LABEL[n.type]||n.type)+' · '+esc(ago(n.ts))+'</div></div><div class="row" style="flex-wrap:nowrap">'+(n.ref&&ntLink(n.ref)?'<button type="button" class="btn xs" data-act="ntGo" data-id="'+n.id+'">Abrir</button>':'')+(rd?'':'<button type="button" class="btn xs g" data-act="ntRead" data-id="'+n.id+'">Leído</button>')+'</div></div>';}).join(''):'<div class="empty">No tenés notificaciones.</div>')+'</div>';
+}};
+function ntLink(ref){if(ref.type==='order')return S.orders.some(o=>o.id===ref.id)?'orden/'+ref.id:null;if(ref.type==='item')return 'inventario';if(ref.type==='req')return 'inventario';if(ref.type==='pay'||ref.type==='cash')return can('cash')?'caja':null;return null;}
+ACTS.ntRead=el=>{const n=S.notifs.find(x=>x.id===el.dataset.id);if(n&&!n.readBy.includes(SESSION.uid)){n.readBy.push(SESSION.uid);emitChange();}};
+ACTS.ntAll=()=>{for(const n of myNotifs(curUser()))if(!n.readBy.includes(SESSION.uid))n.readBy.push(SESSION.uid);emitChange();};
+ACTS.ntGo=el=>{const n=S.notifs.find(x=>x.id===el.dataset.id);if(!n)return;if(!n.readBy.includes(SESSION.uid))n.readBy.push(SESSION.uid);emitChange();const to=ntLink(n.ref);if(to)location.hash='#panel/'+to;};
