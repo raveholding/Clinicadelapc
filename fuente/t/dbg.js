@@ -1,0 +1,16 @@
+const {open}=require('./lib');
+(async()=>{const {browser,page}=await open({hash:'#acceso'});const E=(f,...a)=>page.evaluate(f,...a);
+await E(()=>window.VBC.login('u-admin'));
+const id=await E(()=>S.orders.find(o=>o.status==='diagnostico'&&o.techId).id);
+await E(h=>{location.hash='#panel/orden/'+h;},id);await page.waitForTimeout(300);
+console.log(await E(()=>S.services.map(s=>s.id).join(',')));
+await E(()=>{UI.tab.ord='presupuesto';renderView();});
+console.log(await page.locator('#view [data-act]').evaluateAll(n=>n.map(x=>x.dataset.act).join(',')));
+await page.click('[data-act=quoteEdit]');await page.waitForSelector('#qe-svc');
+const v=await page.locator('#qe-svc option').evaluateAll(n=>n.map(x=>x.value));console.log(v.slice(0,4));
+await page.selectOption('#qe-svc',{index:1});await page.selectOption('#qe-it',{index:1});
+console.log(await page.locator('[data-qi]').count());
+console.log(await page.locator('.modal footer button').allInnerTexts());
+console.log(await page.locator("[data-qi]").evaluateAll(r=>r.map(x=>x.querySelector("[data-f=price]").value)));await page.click('.modal footer .btn.p');await page.waitForTimeout(300);
+console.log(await page.locator('.modal [data-err]').count()?await page.locator('.modal [data-err]').innerText():'sin error', await E(i=>getOrder(i).quote.lines.length,id));
+await browser.close();})();

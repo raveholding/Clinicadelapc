@@ -12,8 +12,8 @@ Consulta pública del cliente: la pantalla inicial (la demo indica una orden y l
 - **Notificaciones internas** automáticas, configurables por rol y por responsable (cambio de estado, atrasos, stock, requerimientos, caja).
 - **Administración y caja:** cobros por varios medios en una operación, vuelto, cuenta corriente con límite, caja con arqueo y cierre sellado, historial financiero por reparación y rentabilidad por servicio y por técnico.
 
-## Pruebas reales (Chromium, 2026-10-27)
-`fuente/t/`: smoke 3 · walk 144 (13 pantallas × 4 roles + 28 órdenes + 12 clientes) · resp 99 (360/768/1280 px, sin desborde, objetivos ≥44 px) · flows 57 · ui 23. Sin errores de consola ni violaciones de CSP.
+## Pruebas reales (Chromium, 2026-10-28)
+`fuente/t/`: smoke 3 · walk 144 (13 pantallas × 4 roles + 28 órdenes + 12 clientes) · resp 99 (360/768/1280 px, sin desborde, objetivos ≥44 px) · flows 57 · ui 23 · ui2 53 (por pantalla: presupuesto, técnico, inventario, compras, caja y cierre, mostrador, clientes, configuración, auditoría, impresiones, reportes). Sin errores de consola ni violaciones de CSP.
 Correr: `python3 build.py` y luego `node fuente/t/<prueba>.js` (requiere Playwright).
 
 ## Límites declarados (no afirmar más que esto)
@@ -26,3 +26,8 @@ Correr: `python3 build.py` y luego `node fuente/t/<prueba>.js` (requiere Playwri
 7. No hay banco de pruebas de la nube porque no hay nube en esta entrega.
 
 Desarrollado por VINCULAR BUSINESS · (387) 4484132 · vincularbusiness@gmail.com · «Tu idea, en buenas manos.»
+
+## Correcciones de la revisión del 2026-10-28
+- El selector de repuestos del presupuesto ya no ofrece artículos sin precio de venta.
+- El reporte de rentabilidad por servicio descontaba dos veces la bonificación; ahora suma exactamente lo mismo que el total por orden.
+- «Imprimir» en el detalle de un cierre de caja fallaba; corregido.

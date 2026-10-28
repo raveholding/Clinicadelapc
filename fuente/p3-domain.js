@@ -707,9 +707,10 @@ function reportServices(a,b){
     const key=o.type==='garantia'?'Garantías (sin cargo)':null;
     if(key){const r=out[key]=out[key]||{name:key,n:0,rev:0,cost:0,mins:0,est:0};r.n++;r.cost+=eco.cost;r.mins+=Math.round(orderMs(o)/MIN);r.est+=quoteTotals(o).estMin;continue;}
     if(!mos.length){const r=out['Otros (sin servicio)']=out['Otros (sin servicio)']||{name:'Otros (sin servicio)',n:0,rev:0,cost:0,mins:0,est:0};r.n++;r.rev+=eco.rev;r.cost+=eco.cost;continue;}
-    for(const l of mos){const name=l.svcId?(S.services.find(s=>s.id===l.svcId)||{name:l.desc}).name:l.desc;const share=lineAmt(l)/totMo;const r=out[name]=out[name]||{name,n:0,rev:0,cost:0,mins:0,est:0};r.n++;
-      const moPart=lineAmt(l);const repPart=Math.round(eco.repRev*share);const discPart=Math.round(eco.disc*share);
-      r.rev+=moPart+repPart-discPart;r.cost+=Math.round(eco.cost*share);r.mins+=Math.round(orderMs(o)*share/MIN);r.est+=Math.round((l.estMin||0)*l.qty);}
+    let left=eco.rev;
+    mos.forEach((l,ix)=>{const name=l.svcId?(S.services.find(s=>s.id===l.svcId)||{name:l.desc}).name:l.desc;const share=lineAmt(l)/totMo;const r=out[name]=out[name]||{name,n:0,rev:0,cost:0,mins:0,est:0};r.n++;
+      const part=ix===mos.length-1?left:Math.round(eco.rev*share);left-=part;
+      r.rev+=part;r.cost+=Math.round(eco.cost*share);r.mins+=Math.round(orderMs(o)*share/MIN);r.est+=Math.round((l.estMin||0)*l.qty);});
   }
   return Object.values(out).map(r=>({...r,margin:r.rev-r.cost,marginPct:pct(r.rev-r.cost,r.rev)}));
 }
