@@ -44,9 +44,10 @@ SCREENS.resumen={title:'Resumen',view(){
   const bar='<div class="row" role="group" aria-label="Período">'+'<div class="seg">'+PERIODS.map(p=>'<button type="button" data-act="resPer" data-p="'+p[0]+'" aria-pressed="'+(per===p[0])+'">'+p[1]+'</button>').join('')+'</div><button type="button" class="btn g" data-act="resPer" data-p="30">Restablecer</button></div>';
   const head=pageHead('Resumen',esc(S.cfg.shop.name)+' · actualizado '+esc(fdt(now()))+' (hora de Salta) '+exChip(),bar);
   if(u.role==='tecnico')return head+techHome(u);
+  const bka=backupAlert();
   const rv=revenueIn(a,b),cob=cobradoIn(a,b),mg=marginIn(a,b);const listo=act.filter(o=>o.status==='listo');const porCobrar=sum(listo,o=>Math.max(0,orderPay(o).due));
   const tile=(cls,l,v,f,extra)=>'<div class="card kpi '+cls+'"><span class="l">'+l+'</span><span class="v num">'+v+'</span>'+(extra||'')+'<span class="f">'+f+'</span></div>';
-  let h=head;
+  let h=head+bka;
   const oc=oldOpenCash();if(oc)h+='<div class="alert warn" style="margin-bottom:14px" role="alert">'+ic('alert',18)+'<span>La caja N.º '+oc.n+' sigue abierta desde el '+esc(fdate(oc.openedAt))+'. '+(can('cash_close')?'<a href="#panel/caja">Cerrala</a> para que no se mezclen los días.':'Avisá a un supervisor para cerrarla.')+'</span></div>';
   h+='<div class="bento">'
    +tile('s3','Órdenes abiertas',act.length,'Fórmula: órdenes que no están entregadas ni canceladas.','<span class="sm mut">'+act.filter(o=>o.status==='proceso').length+' en proceso · '+act.filter(o=>o.status==='prueba').length+' en prueba</span>')

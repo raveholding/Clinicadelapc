@@ -10,13 +10,8 @@ function demoPhoto(label,c1,c2){
   g.fillStyle='rgba(255,255,255,.85)';g.fillRect(40,60,240,110);g.fillStyle='#334155';g.font='bold 18px sans-serif';g.textAlign='center';g.fillText(label,160,122);
   g.font='13px sans-serif';g.fillText('FOTO DE EJEMPLO',160,148);return cv.toDataURL('image/png');
 }
-function seedDemo(){
-  S=emptyState();SEEDING=true;const realBase=now();const base=realBase;
-  const day0=startOfDay(base);
-  /* ---- usuarios ---- */
-  S.users.push({id:'u-admin',name:'Marcos Rivera',role:'admin',active:true},{id:'u-sup',name:'Lucía Fernández',role:'supervisor',active:true},{id:'u-mos',name:'Camila Torres',role:'mostrador',active:true},
-    {id:'u-t1',name:'Diego Paz',role:'tecnico',active:true,commissionPct:30},{id:'u-t2',name:'Sofía Luna',role:'tecnico',active:true,commissionPct:30},{id:'u-t3',name:'Mateo Ríos',role:'tecnico',active:true,commissionPct:35});
-  SESSION.uid='u-admin';
+/* Catálogo base (rubros, servicios de ejemplo y rubros de inventario): lo usan la demo y la versión real. */
+function seedCatalog(){
   /* ---- rubros financieros ---- */
   [['Reparaciones y servicios','ingreso',true],['Ventas de mostrador','ingreso',true],['Cobro de cuenta corriente','ingreso',true],['Reintegros a clientes','egreso',true],
    ['Compra de insumos y repuestos','egreso',false],['Servicios (luz, internet)','egreso',false],['Alquiler del local','egreso',false],['Sueldos y comisiones','egreso',false],['Aporte del dueño','ingreso',false],['Retiro del dueño','egreso',false],['Varios','ambos',false]]
@@ -28,7 +23,16 @@ function seedDemo(){
    .forEach(s=>S.services.push({id:s[0],name:s[1],priceCents:$p(s[2]),estMin:s[3],warrantyDays:s[4],active:true}));
   /* ---- rubros de inventario ---- */
   const CATS=[['Memorias RAM','#6366f1'],['Discos y SSD','#0ea5e9'],['Pantallas','#14b8a6'],['Baterías y cargadores','#f59e0b'],['Teclados y periféricos','#8b5cf6'],['Fuentes y placas','#ef4444'],['Insumos de taller','#64748b'],['Tintas e impresión','#ec4899'],['Accesorios de venta','#22c55e'],['Herramientas','#78716c']];
-  CATS.forEach(c=>catSave({name:c[0],color:c[1]}));const cat=n=>S.cats.find(c=>c.name===n).id;
+  CATS.forEach(c=>catSave({name:c[0],color:c[1]}));
+}
+function seedDemo(){
+  S=emptyState();SEEDING=true;const realBase=now();const base=realBase;
+  const day0=startOfDay(base);
+  /* ---- usuarios ---- */
+  S.users.push({id:'u-admin',name:'Marcos Rivera',role:'admin',active:true},{id:'u-sup',name:'Lucía Fernández',role:'supervisor',active:true},{id:'u-mos',name:'Camila Torres',role:'mostrador',active:true},
+    {id:'u-t1',name:'Diego Paz',role:'tecnico',active:true,commissionPct:30},{id:'u-t2',name:'Sofía Luna',role:'tecnico',active:true,commissionPct:30},{id:'u-t3',name:'Mateo Ríos',role:'tecnico',active:true,commissionPct:35});
+  SESSION.uid='u-admin';
+  seedCatalog();const cat=n=>S.cats.find(c=>c.name===n).id;
   /* ---- proveedores (CUIT con dígito verificador válido; ficticios) ---- */
   const SUP=[['TecnoMayorista Norte S.R.L.','3071234567','Responsable Inscripto','387 555-0201','ventas@tecnomayorista.example','Av. Ficticia 100, Salta'],['Compu Distribuidora del NOA S.A.','3070987654','Responsable Inscripto','387 555-0202','pedidos@compunoa.example','Calle Ejemplo 455, Salta'],['Insumos y Tintas Salta','2720304050','Monotributista','387 555-0203','tintas@insumos.example','Mitre 321, Salta']];
   const sup=[];

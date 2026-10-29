@@ -130,11 +130,13 @@ const NAV=[
  {g:'Análisis',items:[{id:'reportes',label:'Rentabilidad',icon:'chart',perm:'view_reports'}]},
  {g:'Sistema',items:[{id:'config',label:'Configuración',icon:'gear',perm:'config'},{id:'auditoria',label:'Auditoría',icon:'shield',perm:'audit'}]}
 ];
-function parseHash(){const h=location.hash.replace(/^#/,'');if(!h||h==='estado')return {mode:'public'};if(h==='acceso')return {mode:'login'};
+function parseHash(){const h=location.hash.replace(/^#/,'');if(h==='inicio')return {mode:'setup'};if(!h||h==='estado')return {mode:'public'};if(h==='acceso')return {mode:'login'};
   const m=/^panel(?:\/([^/]+))?(?:\/(.+))?$/.exec(h);if(!m)return {mode:'public'};return {mode:'panel',screen:m[1]||'resumen',params:m[2]?m[2].split('/'):[]};}
 function go(screen,...params){location.hash='#panel/'+screen+(params.length?'/'+params.join('/'):'');}
 function applyRoute(){
   const r=parseHash();
+  if(!IS_DEMO&&!S.users.length&&r.mode!=='setup'){location.hash='#inicio';return;}
+  if(r.mode==='setup'&&(IS_DEMO||S.users.length)){location.hash='#acceso';return;}
   if(r.mode==='panel'&&!curUser()){location.hash='#acceso';return;}
   UI.mode=r.mode;if(r.mode==='panel'){UI.screen=SCREENS[r.screen]?r.screen:'resumen';UI.params=r.params;}
   UI.open=false;closeAllModals();renderApp();
@@ -145,6 +147,7 @@ window.addEventListener('hashchange',applyRoute);
 /* ---------- render ---------- */
 function renderApp(){
   const root=$('#root');
+  if(UI.mode==='setup'){root.innerHTML=setupHtml();setupBind();document.title='Configuración inicial · Sistema VB';return;}
   if(UI.mode==='public'){root.innerHTML=publicHtml();publicBind();document.title='Estado de tu reparación · '+S.cfg.shop.name;return;}
   if(UI.mode==='login'){root.innerHTML=loginHtml();loginBind();document.title='Acceso del equipo · '+S.cfg.shop.name;return;}
   const u=curUser();
@@ -195,7 +198,7 @@ function showMenu(anchor,items){$$('.menu').forEach(m=>m.remove());const m=docum
   document.body.appendChild(m);const r=anchor.getBoundingClientRect();m.style.top=(window.scrollY+r.bottom+6)+'px';m.style.left=Math.max(8,Math.min(window.scrollX+r.left,window.scrollX+document.documentElement.clientWidth-m.offsetWidth-8))+'px';
   m.querySelectorAll('[data-mi]').forEach(b=>b.addEventListener('click',ev=>{ev.stopPropagation();m.remove();const it=items[+b.dataset.mi];if(it.fn)try{it.fn();}catch(err){if(err instanceof VBErr)toast(err.message,'bad');else console.error(err);}}));
   const f=m.querySelector('button');if(f)f.focus();return m;}
-ACTS.userMenu=el=>{const u=curUser();const items=[{label:'Notificaciones',icon:'bell',fn:()=>go('notificaciones')},{sep:true},...S.users.filter(x=>x.active!==false&&x.id!==u.id).map(x=>({label:'Cambiar a '+x.name+' ('+ROLES[x.role].label+')',icon:'user',fn:()=>{SESSION.uid=x.id;localStorage.setItem('vbc_uid',x.id);audit('SESION_CAMBIO','Demo: cambio de usuario a '+x.name);if(!can(SCREENS[UI.screen]&&SCREENS[UI.screen].perm||'x')&&SCREENS[UI.screen]&&SCREENS[UI.screen].perm)go('resumen');renderApp();toast('Ahora usás el sistema como '+x.name+'.');}})),{sep:true},{label:'Cerrar sesión',icon:'lock',fn:()=>{SESSION.uid=null;localStorage.removeItem('vbc_uid');location.hash='#acceso';}}];
+ACTS.userMenu=el=>{const u=curUser();const items=[{label:'Notificaciones',icon:'bell',fn:()=>go('notificaciones')},{sep:true},...(!IS_DEMO?[]:S.users.filter(x=>x.active!==false&&x.id!==u.id)).map(x=>({label:'Cambiar a '+x.name+' ('+ROLES[x.role].label+')',icon:'user',fn:()=>{SESSION.uid=x.id;localStorage.setItem(UIDKEY,x.id);audit('SESION_CAMBIO','Demo: cambio de usuario a '+x.name);if(!can(SCREENS[UI.screen]&&SCREENS[UI.screen].perm||'x')&&SCREENS[UI.screen]&&SCREENS[UI.screen].perm)go('resumen');renderApp();toast('Ahora usás el sistema como '+x.name+'.');}})),{sep:true},{label:IS_DEMO?'Cerrar sesión':'Cambiar de usuario / salir',icon:'lock',fn:()=>{if(!IS_DEMO)audit('SESION_FIN','Salida de '+u.name);SESSION.uid=null;localStorage.removeItem(UIDKEY);location.hash='#acceso';}}];
   showMenu(el,items);};
 
 /* ---------- buscador global ---------- */

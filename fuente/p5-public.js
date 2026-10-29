@@ -39,9 +39,9 @@ function publicBind(){
 function loginHtml(){
   const us=S.users.filter(u=>u.active!==false);
   return '<div class="pub"><div class="wrap"><div class="hero"><div class="row" style="gap:12px">'+LOGO.replace('width="38" height="38"','width="52" height="52"')+'<div><h1>Acceso del equipo</h1><p class="mut" style="margin:0">'+esc(S.cfg.shop.name)+'</p></div></div></div>'
-   +'<div class="alert info" style="margin-bottom:14px"><span>'+ic('alert',18)+'</span><span><b>Demo.</b> Elegí un usuario para probar el sistema con su rol. No hay contraseñas reales en la demo; en la versión del cliente el ingreso es con correo y contraseña de la nube.</span></div>'
+   +'<div class="alert info" style="margin-bottom:14px"><span>'+ic('alert',18)+'</span>'+(IS_DEMO?'<span><b>Demo.</b> Elegí un usuario para probar el sistema con su rol. No hay contraseñas reales en la demo; en la versión del cliente el ingreso es con correo y contraseña de la nube.</span>':'<span>Elegí tu usuario e ingresá tu PIN.</span>')+'</div>'
    +'<div class="users" role="list">'+us.map(u=>'<button type="button" class="ubtn" role="listitem" data-act="login" data-uid="'+u.id+'"><span class="ava" aria-hidden="true">'+esc(initials(u.name))+'</span><span><b>'+esc(u.name)+'</b><br><span class="mut sm">'+esc(ROLES[u.role].label)+'</span></span></button>').join('')+'</div>'
    +'<p style="margin-top:16px"><a href="#estado">← Volver a la consulta de estado</a></p><div style="margin-top:16px">'+vbBanner()+'</div></div></div>';
 }
 function loginBind(){}
-ACTS.login=el=>{const u=userById(el.dataset.uid);if(!u)return;SESSION.uid=u.id;localStorage.setItem('vbc_uid',u.id);audit('SESION_INICIO','Demo: ingreso de '+u.name);scanSla();location.hash='#panel/resumen';};
+ACTS.login=el=>{if(!IS_DEMO){loginWithPin(el.dataset.uid);return;}const u=userById(el.dataset.uid);if(!u)return;SESSION.uid=u.id;localStorage.setItem(UIDKEY,u.id);audit('SESION_INICIO','Demo: ingreso de '+u.name);scanSla();location.hash='#panel/resumen';};

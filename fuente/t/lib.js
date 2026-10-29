@@ -1,5 +1,5 @@
 const {chromium}=require('playwright');const path=require('path');
-const URL='file://'+path.resolve(__dirname,'../../index.html');
+const URL='file://'+path.resolve(__dirname,'../../'+(process.env.VBFILE||'demo.html'));
 async function open(opts={}){
   const browser=await chromium.launch();const ctx=await browser.newContext({viewport:opts.viewport||{width:1280,height:800},locale:'es-AR',timezoneId:'America/Argentina/Salta'});
   const page=await ctx.newPage();const errs=[];

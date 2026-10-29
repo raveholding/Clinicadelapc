@@ -3,10 +3,10 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-VRSrQ0/SfE5YdjRr9WczIw71HAJK/pKu0GCzgcuKhe4='; style-src 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'none'; form-action 'none'; base-uri 'none'; object-src 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-zh/d7u/PjB6GrlOAudiU4VMhtiAKSTb3FLVy3LeoPO8='; style-src 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'none'; form-action 'none'; base-uri 'none'; object-src 'none'">
 <meta name="theme-color" content="#0F766E">
-<meta name="description" content="Clínica de la PC · gestión de taller de reparación (demo de Sistema VB)">
-<title>Clínica de la PC · Sistema VB (demo)</title>
+<meta name="description" content="Clínica de la PC · gestión de taller de reparación (Sistema VB)">
+<title>Clínica de la PC · Sistema VB</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230F766E'/%3E%3Crect x='11' y='15' width='42' height='28' rx='4' fill='none' stroke='%23fff' stroke-width='4'/%3E%3Cpath d='M24 51h16M32 43v8' stroke='%23fff' stroke-width='4' stroke-linecap='round'/%3E%3Cpath d='M32 22v14M25 29h14' stroke='%23fff' stroke-width='4' stroke-linecap='round'/%3E%3C/svg%3E">
 <style>
 :root{
@@ -264,7 +264,7 @@ table.tbl{width:100%;border-collapse:collapse;font-size:.92rem}
    permisos, auditoría encadenada y notificaciones internas.
    Desarrollado por VINCULAR BUSINESS · (387) 4484132 · vincularbusiness@gmail.com
    ===================================================================== */
-const APP={name:'Clínica de la PC',ver:'V26 · taller 1.0',variant:'demo',tz:'America/Argentina/Salta',build:'2026-10-28 23:49 UTC'};
+const APP={name:'Clínica de la PC',ver:'V26 · taller 1.0',variant:'real',tz:'America/Argentina/Salta',build:'2026-10-28 23:59 UTC'};
 const VB={name:'VINCULAR BUSINESS',cel:'(387) 4484132',wa:'https://wa.me/5493874484132',tel:'tel:+5493874484132',mail:'vincularbusiness@gmail.com',lema:'Tu idea, en buenas manos.'};
 
 /* ---------- utilidades ---------- */
@@ -364,6 +364,8 @@ const ROLES={
   tecnico:{label:'Técnico',perms:['orders_work','request','tools']}
 };
 const SESSION={uid:null};
+const UIDKEY=APP.variant==='demo'?'vbc_uid':'vbc_uid_real';
+const IS_DEMO=APP.variant==='demo';
 let S=null; // estado
 function curUser(){return S&&S.users.find(u=>u.id===SESSION.uid)||null;}
 function can(p,u){u=u||curUser();if(!u)return false;const r=ROLES[u.role];return !!r&&(r.perms==='*'||r.perms.includes(p));}
@@ -375,7 +377,7 @@ const techs=()=>S.users.filter(u=>u.role==='tecnico'&&u.active!==false);
 /* ---------- configuración por defecto ---------- */
 function defCfg(){return {
   shop:{name:'Clínica de la PC',legal:'[PENDIENTE]',cuit:'[PENDIENTE]',addr:'Av. Ejemplo 1234, Salta Capital',wa:'387 555-0100',phone:'(387) 555-0100',mail:'contacto@clinicadelapc.example',hours:'Lun a Vie 9:00–13:00 y 16:30–20:30 · Sáb 9:00–13:00',fiscal:'[PENDIENTE]'},
-  rateHourCents:$p(28000),
+  rateHourCents:$p(28000),lastBackup:0,
   quoteValidDays:7,
   warrantyDays:30,
   storedDays:15,
@@ -422,7 +424,7 @@ function nid(p){S.seq.id++;return p+S.seq.id.toString(36);}
 
 /* ---------- persistencia (IndexedDB, un solo registro cifrado a futuro en la nube) ---------- */
 const DBX={db:null,
-  open(){return new Promise((res,rej)=>{try{const r=indexedDB.open('vb-clinica-pc',1);r.onupgradeneeded=()=>r.result.createObjectStore('kv');r.onsuccess=()=>{this.db=r.result;res(r.result);};r.onerror=()=>rej(r.error);}catch(e){rej(e);}});},
+  open(){return new Promise((res,rej)=>{try{const r=indexedDB.open(APP.variant==='demo'?'vb-clinica-pc':'vb-clinica-pc-real',1);r.onupgradeneeded=()=>r.result.createObjectStore('kv');r.onsuccess=()=>{this.db=r.result;res(r.result);};r.onerror=()=>rej(r.error);}catch(e){rej(e);}});},
   get(k){return new Promise((res,rej)=>{const t=this.db.transaction('kv').objectStore('kv').get(k);t.onsuccess=()=>res(t.result);t.onerror=()=>rej(t.error);});},
   set(k,v){return new Promise((res,rej)=>{const t=this.db.transaction('kv','readwrite');t.objectStore('kv').put(v,k);t.oncomplete=()=>res();t.onerror=()=>rej(t.error);t.onabort=()=>rej(t.error);});},
   del(k){return new Promise((res,rej)=>{const t=this.db.transaction('kv','readwrite');t.objectStore('kv').delete(k);t.oncomplete=()=>res();t.onerror=()=>rej(t.error);});}
@@ -1312,11 +1314,13 @@ const NAV=[
  {g:'Análisis',items:[{id:'reportes',label:'Rentabilidad',icon:'chart',perm:'view_reports'}]},
  {g:'Sistema',items:[{id:'config',label:'Configuración',icon:'gear',perm:'config'},{id:'auditoria',label:'Auditoría',icon:'shield',perm:'audit'}]}
 ];
-function parseHash(){const h=location.hash.replace(/^#/,'');if(!h||h==='estado')return {mode:'public'};if(h==='acceso')return {mode:'login'};
+function parseHash(){const h=location.hash.replace(/^#/,'');if(h==='inicio')return {mode:'setup'};if(!h||h==='estado')return {mode:'public'};if(h==='acceso')return {mode:'login'};
   const m=/^panel(?:\/([^/]+))?(?:\/(.+))?$/.exec(h);if(!m)return {mode:'public'};return {mode:'panel',screen:m[1]||'resumen',params:m[2]?m[2].split('/'):[]};}
 function go(screen,...params){location.hash='#panel/'+screen+(params.length?'/'+params.join('/'):'');}
 function applyRoute(){
   const r=parseHash();
+  if(!IS_DEMO&&!S.users.length&&r.mode!=='setup'){location.hash='#inicio';return;}
+  if(r.mode==='setup'&&(IS_DEMO||S.users.length)){location.hash='#acceso';return;}
   if(r.mode==='panel'&&!curUser()){location.hash='#acceso';return;}
   UI.mode=r.mode;if(r.mode==='panel'){UI.screen=SCREENS[r.screen]?r.screen:'resumen';UI.params=r.params;}
   UI.open=false;closeAllModals();renderApp();
@@ -1327,6 +1331,7 @@ window.addEventListener('hashchange',applyRoute);
 /* ---------- render ---------- */
 function renderApp(){
   const root=$('#root');
+  if(UI.mode==='setup'){root.innerHTML=setupHtml();setupBind();document.title='Configuración inicial · Sistema VB';return;}
   if(UI.mode==='public'){root.innerHTML=publicHtml();publicBind();document.title='Estado de tu reparación · '+S.cfg.shop.name;return;}
   if(UI.mode==='login'){root.innerHTML=loginHtml();loginBind();document.title='Acceso del equipo · '+S.cfg.shop.name;return;}
   const u=curUser();
@@ -1377,7 +1382,7 @@ function showMenu(anchor,items){$$('.menu').forEach(m=>m.remove());const m=docum
   document.body.appendChild(m);const r=anchor.getBoundingClientRect();m.style.top=(window.scrollY+r.bottom+6)+'px';m.style.left=Math.max(8,Math.min(window.scrollX+r.left,window.scrollX+document.documentElement.clientWidth-m.offsetWidth-8))+'px';
   m.querySelectorAll('[data-mi]').forEach(b=>b.addEventListener('click',ev=>{ev.stopPropagation();m.remove();const it=items[+b.dataset.mi];if(it.fn)try{it.fn();}catch(err){if(err instanceof VBErr)toast(err.message,'bad');else console.error(err);}}));
   const f=m.querySelector('button');if(f)f.focus();return m;}
-ACTS.userMenu=el=>{const u=curUser();const items=[{label:'Notificaciones',icon:'bell',fn:()=>go('notificaciones')},{sep:true},...S.users.filter(x=>x.active!==false&&x.id!==u.id).map(x=>({label:'Cambiar a '+x.name+' ('+ROLES[x.role].label+')',icon:'user',fn:()=>{SESSION.uid=x.id;localStorage.setItem('vbc_uid',x.id);audit('SESION_CAMBIO','Demo: cambio de usuario a '+x.name);if(!can(SCREENS[UI.screen]&&SCREENS[UI.screen].perm||'x')&&SCREENS[UI.screen]&&SCREENS[UI.screen].perm)go('resumen');renderApp();toast('Ahora usás el sistema como '+x.name+'.');}})),{sep:true},{label:'Cerrar sesión',icon:'lock',fn:()=>{SESSION.uid=null;localStorage.removeItem('vbc_uid');location.hash='#acceso';}}];
+ACTS.userMenu=el=>{const u=curUser();const items=[{label:'Notificaciones',icon:'bell',fn:()=>go('notificaciones')},{sep:true},...(!IS_DEMO?[]:S.users.filter(x=>x.active!==false&&x.id!==u.id)).map(x=>({label:'Cambiar a '+x.name+' ('+ROLES[x.role].label+')',icon:'user',fn:()=>{SESSION.uid=x.id;localStorage.setItem(UIDKEY,x.id);audit('SESION_CAMBIO','Demo: cambio de usuario a '+x.name);if(!can(SCREENS[UI.screen]&&SCREENS[UI.screen].perm||'x')&&SCREENS[UI.screen]&&SCREENS[UI.screen].perm)go('resumen');renderApp();toast('Ahora usás el sistema como '+x.name+'.');}})),{sep:true},{label:IS_DEMO?'Cerrar sesión':'Cambiar de usuario / salir',icon:'lock',fn:()=>{if(!IS_DEMO)audit('SESION_FIN','Salida de '+u.name);SESSION.uid=null;localStorage.removeItem(UIDKEY);location.hash='#acceso';}}];
   showMenu(el,items);};
 
 /* ---------- buscador global ---------- */
@@ -1435,12 +1440,12 @@ function publicBind(){
 function loginHtml(){
   const us=S.users.filter(u=>u.active!==false);
   return '<div class="pub"><div class="wrap"><div class="hero"><div class="row" style="gap:12px">'+LOGO.replace('width="38" height="38"','width="52" height="52"')+'<div><h1>Acceso del equipo</h1><p class="mut" style="margin:0">'+esc(S.cfg.shop.name)+'</p></div></div></div>'
-   +'<div class="alert info" style="margin-bottom:14px"><span>'+ic('alert',18)+'</span><span><b>Demo.</b> Elegí un usuario para probar el sistema con su rol. No hay contraseñas reales en la demo; en la versión del cliente el ingreso es con correo y contraseña de la nube.</span></div>'
+   +'<div class="alert info" style="margin-bottom:14px"><span>'+ic('alert',18)+'</span>'+(IS_DEMO?'<span><b>Demo.</b> Elegí un usuario para probar el sistema con su rol. No hay contraseñas reales en la demo; en la versión del cliente el ingreso es con correo y contraseña de la nube.</span>':'<span>Elegí tu usuario e ingresá tu PIN.</span>')+'</div>'
    +'<div class="users" role="list">'+us.map(u=>'<button type="button" class="ubtn" role="listitem" data-act="login" data-uid="'+u.id+'"><span class="ava" aria-hidden="true">'+esc(initials(u.name))+'</span><span><b>'+esc(u.name)+'</b><br><span class="mut sm">'+esc(ROLES[u.role].label)+'</span></span></button>').join('')+'</div>'
    +'<p style="margin-top:16px"><a href="#estado">← Volver a la consulta de estado</a></p><div style="margin-top:16px">'+vbBanner()+'</div></div></div>';
 }
 function loginBind(){}
-ACTS.login=el=>{const u=userById(el.dataset.uid);if(!u)return;SESSION.uid=u.id;localStorage.setItem('vbc_uid',u.id);audit('SESION_INICIO','Demo: ingreso de '+u.name);scanSla();location.hash='#panel/resumen';};
+ACTS.login=el=>{if(!IS_DEMO){loginWithPin(el.dataset.uid);return;}const u=userById(el.dataset.uid);if(!u)return;SESSION.uid=u.id;localStorage.setItem(UIDKEY,u.id);audit('SESION_INICIO','Demo: ingreso de '+u.name);scanSla();location.hash='#panel/resumen';};
 
 /* =====================================================================
    RESUMEN (Dashboard Analytics): primera pantalla del panel
@@ -1488,9 +1493,10 @@ SCREENS.resumen={title:'Resumen',view(){
   const bar='<div class="row" role="group" aria-label="Período">'+'<div class="seg">'+PERIODS.map(p=>'<button type="button" data-act="resPer" data-p="'+p[0]+'" aria-pressed="'+(per===p[0])+'">'+p[1]+'</button>').join('')+'</div><button type="button" class="btn g" data-act="resPer" data-p="30">Restablecer</button></div>';
   const head=pageHead('Resumen',esc(S.cfg.shop.name)+' · actualizado '+esc(fdt(now()))+' (hora de Salta) '+exChip(),bar);
   if(u.role==='tecnico')return head+techHome(u);
+  const bka=backupAlert();
   const rv=revenueIn(a,b),cob=cobradoIn(a,b),mg=marginIn(a,b);const listo=act.filter(o=>o.status==='listo');const porCobrar=sum(listo,o=>Math.max(0,orderPay(o).due));
   const tile=(cls,l,v,f,extra)=>'<div class="card kpi '+cls+'"><span class="l">'+l+'</span><span class="v num">'+v+'</span>'+(extra||'')+'<span class="f">'+f+'</span></div>';
-  let h=head;
+  let h=head+bka;
   const oc=oldOpenCash();if(oc)h+='<div class="alert warn" style="margin-bottom:14px" role="alert">'+ic('alert',18)+'<span>La caja N.º '+oc.n+' sigue abierta desde el '+esc(fdate(oc.openedAt))+'. '+(can('cash_close')?'<a href="#panel/caja">Cerrala</a> para que no se mezclen los días.':'Avisá a un supervisor para cerrarla.')+'</span></div>';
   h+='<div class="bento">'
    +tile('s3','Órdenes abiertas',act.length,'Fórmula: órdenes que no están entregadas ni canceladas.','<span class="sm mut">'+act.filter(o=>o.status==='proceso').length+' en proceso · '+act.filter(o=>o.status==='prueba').length+' en prueba</span>')
@@ -1565,7 +1571,7 @@ SCREENS.ingreso={title:'Nueva recepción',perm:'intake',noAuto:true,view(){
    +'<div class="field"><label for="d-prom">Fecha estimada de entrega</label><input type="date" id="d-prom"></div></div></section>'
   +'<section class="card" aria-labelledby="in7"><h2 id="in7" style="margin-bottom:12px">7 · Conformidad del cliente</h2><details><summary style="cursor:pointer;min-height:44px;display:flex;align-items:center">Ver condiciones del servicio</summary><p class="sm mut">'+esc(S.cfg.terms)+'</p></details>'
    +'<label class="chk"><input type="checkbox" id="d-terms"><span>El cliente leyó y acepta las condiciones del servicio *</span></label>'
-   +'<div class="field" style="margin-top:8px"><span class="lbl">Firma del cliente (opcional en la demo)</span><canvas id="sig" class="sig" width="840" height="260" aria-label="Espacio para firmar con el dedo o el mouse"></canvas><div class="row"><button type="button" class="btn xs" data-act="sigClear">Borrar firma</button></div></div></section>'
+   +'<div class="field" style="margin-top:8px"><span class="lbl">Firma del cliente (opcional)</span><canvas id="sig" class="sig" width="840" height="260" aria-label="Espacio para firmar con el dedo o el mouse"></canvas><div class="row"><button type="button" class="btn xs" data-act="sigClear">Borrar firma</button></div></div></section>'
   +'<div class="row" style="position:sticky;bottom:0;background:linear-gradient(180deg,transparent,var(--bg) 30%);padding:14px 0"><button type="button" class="btn p lg" data-act="inSubmit">'+ic('check',20)+'Guardar y generar orden</button><button type="button" class="btn lg" data-act="inCancel">Limpiar formulario</button></div></form>';
 },after(){const cv=$('#sig');if(cv)UI.sig=sigPad(cv);}};
 function inClientHtml(){
@@ -2345,11 +2351,13 @@ function rubroSave(d){
 }
 function userSave(d){
   need('config');const name=txt(d.name,3,60,'El nombre');if(!ROLES[d.role])fail('Elegí un rol.');
+  const pin=IS_DEMO?null:pinValidate(d.pin,!d.id);
   const cm=d.commissionPct===''||d.commissionPct==null?null:posInt(d.commissionPct,0,100,'La comisión');
   if(d.id){const u=userById(d.id);if(!u)fail('El usuario no existe.');
     const activeAdmins=S.users.filter(x=>x.role==='admin'&&x.active!==false&&x.id!==u.id).length;if(u.role==='admin'&&(d.role!=='admin'||d.active===false)&&activeAdmins===0)fail('Tiene que quedar al menos un administrador activo.');
     Object.assign(u,{name,role:d.role,active:d.active!==false,commissionPct:d.role==='tecnico'?cm:null});}
   else S.users.push({id:nid('u'),name,role:d.role,active:true,commissionPct:d.role==='tecnico'?cm:null});
+  if(!IS_DEMO){const t=d.id?userById(d.id):S.users[S.users.length-1];if(pin)t.pinHash=pinHash(t.id,pin);}
   audit('USUARIO_GUARDADO',name+' ('+d.role+')');emitChange();
 }
 function notifCfgSave(type,patch){need('config');const r=S.cfg.notif[type];if(!r)fail('Aviso desconocido.');if(patch.on!=null)r.on=!!patch.on;if(patch.assignee!=null)r.assignee=!!patch.assignee;if(patch.roles)r.roles=patch.roles.filter(x=>ROLES[x]);audit('CONFIG_AVISO',type);emitChange();}
@@ -2378,7 +2386,7 @@ ACTS.svcEdit=el=>{const s=el.dataset.id?S.services.find(x=>x.id===el.dataset.id)
 function cfgRubros(){return '<div class="card"><div class="row spread"><h3 style="margin:0">Rubros financieros</h3><button type="button" class="btn p" data-act="rubEdit">'+ic('plus',16)+'Nuevo rubro</button></div><p class="mut sm">Todo movimiento de caja lleva rubro. Los marcados «sistema» se usan automáticamente y no se editan.</p>'+tableWrap('<table class="tbl"><thead><tr><th scope="col">Rubro</th><th scope="col">Tipo</th><th scope="col"><span class="sr-only">Editar</span></th></tr></thead><tbody>'+S.rubros.map(r=>'<tr><td>'+esc(r.name)+(r.sys?' '+badge('sistema',''):'')+'</td><td>'+esc(RUBRO_TYPES[r.type])+'</td><td>'+(r.sys?'':'<button type="button" class="btn xs" data-act="rubEdit" data-id="'+r.id+'">Editar</button>')+'</td></tr>').join('')+'</tbody></table>')+'</div>';}
 ACTS.rubEdit=el=>{const r=el.dataset.id?S.rubros.find(x=>x.id===el.dataset.id):{name:'',type:'egreso'};modal({title:r.id?'Editar rubro':'Nuevo rubro',small:true,html:fld('Nombre','<input type="text" id="rb-n" maxlength="50" value="'+esc(r.name)+'">')+fld('Tipo','<select id="rb-t">'+opts(Object.entries(RUBRO_TYPES),r.type)+'</select>'),buttons:[{label:'Cancelar'},{label:'Guardar',cls:'p',onClick:h=>{rubroSave({id:r.id||null,name:h.$('#rb-n').value,type:h.$('#rb-t').value});toast('Rubro guardado.','ok');}}]});};
 function cfgUsuarios(){return '<div class="card"><div class="row spread"><h3 style="margin:0">Usuarios del taller</h3><button type="button" class="btn p" data-act="usrEdit">'+ic('plus',16)+'Nuevo usuario</button></div><p class="mut sm">En esta demo no hay contraseñas. En la versión del cliente cada usuario ingresa con correo y contraseña propios.</p>'+tableWrap('<table class="tbl"><thead><tr><th scope="col">Nombre</th><th scope="col">Rol</th><th scope="col" class="hide-sm">Comisión</th><th scope="col">Estado</th><th scope="col"><span class="sr-only">Editar</span></th></tr></thead><tbody>'+S.users.map(u=>'<tr><td><b>'+esc(u.name)+'</b></td><td>'+esc(ROLES[u.role].label)+'</td><td class="hide-sm">'+(u.role==='tecnico'?(u.commissionPct==null?S.cfg.commissionPct+' % (general)':u.commissionPct+' %'):'—')+'</td><td>'+(u.active===false?badge('Inactivo',''):badge('Activo','ok'))+'</td><td><button type="button" class="btn xs" data-act="usrEdit" data-id="'+u.id+'">Editar</button></td></tr>').join('')+'</tbody></table>')+'</div>';}
-ACTS.usrEdit=el=>{const u=el.dataset.id?userById(el.dataset.id):{name:'',role:'tecnico',active:true,commissionPct:null};modal({title:u.id?'Editar usuario':'Nuevo usuario',small:true,html:fld('Nombre','<input type="text" id="us-n" maxlength="60" value="'+esc(u.name)+'">')+fld('Rol','<select id="us-r">'+opts(Object.entries(ROLES).map(([k,v])=>[k,v.label]),u.role)+'</select>')+fld('Comisión (%) · sólo técnicos','<input type="text" inputmode="numeric" id="us-c" placeholder="Usar la general" value="'+esc(u.commissionPct==null?'':u.commissionPct)+'">')+(u.id?'<label class="chk"><input type="checkbox" id="us-a"'+(u.active!==false?' checked':'')+'><span>Activo</span></label>':''),buttons:[{label:'Cancelar'},{label:'Guardar',cls:'p',onClick:h=>{userSave({id:u.id||null,name:h.$('#us-n').value,role:h.$('#us-r').value,commissionPct:h.$('#us-c').value.trim(),active:h.$('#us-a')?h.$('#us-a').checked:true});toast('Usuario guardado.','ok');}}]});};
+ACTS.usrEdit=el=>{const u=el.dataset.id?userById(el.dataset.id):{name:'',role:'tecnico',active:true,commissionPct:null};modal({title:u.id?'Editar usuario':'Nuevo usuario',small:true,html:fld('Nombre','<input type="text" id="us-n" maxlength="60" value="'+esc(u.name)+'">')+fld('Rol','<select id="us-r">'+opts(Object.entries(ROLES).map(([k,v])=>[k,v.label]),u.role)+'</select>')+fld('Comisión (%) · sólo técnicos','<input type="text" inputmode="numeric" id="us-c" placeholder="Usar la general" value="'+esc(u.commissionPct==null?'':u.commissionPct)+'">')+(IS_DEMO?'':fld('PIN de ingreso (4 a 8 números)','<input type="password" inputmode="numeric" id="us-pin" maxlength="8" autocomplete="new-password">',u.id?'Dejalo vacío para no cambiarlo.':''))+(u.id?'<label class="chk"><input type="checkbox" id="us-a"'+(u.active!==false?' checked':'')+'><span>Activo</span></label>':''),buttons:[{label:'Cancelar'},{label:'Guardar',cls:'p',onClick:h=>{userSave({id:u.id||null,name:h.$('#us-n').value,role:h.$('#us-r').value,commissionPct:h.$('#us-c').value.trim(),pin:h.$('#us-pin')?h.$('#us-pin').value:'',active:h.$('#us-a')?h.$('#us-a').checked:true});toast('Usuario guardado.','ok');}}]});};
 function cfgAvisos(){
   const nr=Object.keys(S.cfg.notif);
   return '<div class="card"><h3>Avisos internos automáticos</h3><p class="mut sm">Elegí qué avisos se generan y quién los recibe. «Responsable» = el técnico de esa orden.</p>'+tableWrap('<table class="tbl"><thead><tr><th scope="col">Aviso</th><th scope="col">Activo</th>'+Object.keys(ROLES).map(r=>'<th scope="col">'+esc(ROLES[r].label.split(' ')[0])+'</th>').join('')+'<th scope="col">Responsable</th></tr></thead><tbody>'+nr.map(k=>{const r=S.cfg.notif[k];return '<tr><td>'+esc(NOTIF_LABEL[k]||k)+'</td><td><input type="checkbox" data-chg="nfOn" data-k="'+k+'"'+(r.on?' checked':'')+' aria-label="Activar '+esc(NOTIF_LABEL[k]||k)+'"></td>'+Object.keys(ROLES).map(ro=>'<td><input type="checkbox" data-chg="nfRole" data-k="'+k+'" data-r="'+ro+'"'+(r.roles.includes(ro)?' checked':'')+' aria-label="'+esc(NOTIF_LABEL[k]||k)+' para '+esc(ROLES[ro].label)+'"></td>').join('')+'<td><input type="checkbox" data-chg="nfAsg" data-k="'+k+'"'+(r.assignee?' checked':'')+' aria-label="'+esc(NOTIF_LABEL[k]||k)+' al responsable"></td></tr>';}).join('')+'</tbody></table>')+'</div>'
@@ -2406,8 +2414,8 @@ function backupRestore(text){
 function cfgDatos(){
   return '<div class="grid g2"><div class="card"><h3>Copia de seguridad</h3><p class="mut sm">Los datos viven en este navegador. Descargá una copia periódicamente: si borrás los datos del navegador, se pierden.</p><div class="row"><button type="button" class="btn p" data-act="bkExport">'+ic('download',18)+'Descargar copia (.json)</button></div>'
    +'<h4 style="margin:16px 0 6px">Restaurar</h4><p class="mut sm">Reemplaza TODOS los datos actuales por los del archivo. Se valida antes de aplicar.</p><div class="field"><label for="bk-f">Archivo de copia</label><input type="file" id="bk-f" accept=".json,application/json" data-chg="bkFile"></div></div>'
-   +'<div class="card"><h3>Datos de ejemplo</h3><p class="mut sm">Esta versión es una demo con datos de ejemplo. Podés volver al estado inicial cuando quieras.</p><button type="button" class="btn d" data-act="bkReset">Reiniciar la demo…</button></div></div>';}
-ACTS.bkExport=()=>run(()=>{downloadText('copia-clinica-pc-'+dayKey(now())+'.json',backupJson(),'application/json');audit('COPIA_EXPORTADA','');saveNow();},'Copia descargada.');
+   +(IS_DEMO?'<div class="card"><h3>Datos de ejemplo</h3><p class="mut sm">Esta versión es una demo con datos de ejemplo. Podés volver al estado inicial cuando quieras.</p><button type="button" class="btn d" data-act="bkReset">Reiniciar la demo…</button></div>':'<div class="card"><h3>Borrar todo</h3><p class="mut sm">Deja el sistema como recién instalado (vuelve la configuración inicial). Descargá una copia antes.</p><button type="button" class="btn d" data-act="bkWipe">Borrar todos los datos…</button></div>')+'</div>';}
+ACTS.bkExport=()=>run(()=>{downloadText('copia-clinica-pc-'+dayKey(now())+'.json',backupJson(),'application/json');S.cfg.lastBackup=now();audit('COPIA_EXPORTADA','');emitChange();saveNow();},'Copia descargada.');
 CHG.bkFile=el=>{const f=el.files&&el.files[0];if(!f)return;if(f.size>40*1024*1024){toast('El archivo es demasiado grande.','bad');return;}const rd=new FileReader();rd.onload=()=>{let st;try{st=backupRestore(String(rd.result));}catch(e){if(e instanceof VBErr){toast(e.message,'bad');el.value='';return;}throw e;}
     confirmBox({title:'Restaurar copia',html:'Se van a reemplazar <b>todos</b> los datos actuales: '+st.orders.length+' órdenes, '+st.clients.length+' clientes, '+st.items.length+' artículos. No se puede deshacer.',confirmWord:'RESTAURAR',danger:true,ok:'Restaurar',onOk:()=>{S=st;if(!userById(SESSION.uid))SESSION.uid=(S.users.find(u=>u.role==='admin'&&u.active!==false)||S.users[0]).id;audit('COPIA_RESTAURADA','');saveNow();toast('Copia restaurada.','ok');renderApp();}});};
   rd.onerror=()=>toast('No se pudo leer el archivo.','bad');rd.readAsText(f);};
@@ -2467,6 +2475,85 @@ function assistantBind(){
 ACTS.assistToggle=()=>{UI.assistOpen=!UI.assistOpen;const p=$('#apanel');if(p)p.classList.toggle('hide',!UI.assistOpen);$$('[data-act=assistToggle][aria-expanded]').forEach(b=>b.setAttribute('aria-expanded',String(UI.assistOpen)));if(UI.assistOpen){const i=$('#ain');if(i)setTimeout(()=>i.focus(),30);}};
 
 /* =====================================================================
+   VERSIÓN DE USO REAL: primer ingreso (datos del negocio + administrador),
+   PIN por usuario, aviso de copia de seguridad y borrado total.
+   Los datos viven en ESTE navegador (IndexedDB): el PIN es una barrera de
+   uso en el mostrador, NO es seguridad de nube.
+   ===================================================================== */
+const PIN_RE=/^\d{4,8}$/;
+function pinHash(uid,pin){return sha256('pin|'+uid+'|'+pin);}
+const _pinFails={};
+function pinCheck(u,pin){
+  const f=_pinFails[u.id]||(_pinFails[u.id]={n:0,until:0});
+  if(Date.now()<f.until)fail('Demasiados intentos. Esperá '+Math.ceil((f.until-Date.now())/1000)+' segundos.');
+  if(!u.pinHash)return true;
+  if(pinHash(u.id,String(pin||''))===u.pinHash){f.n=0;return true;}
+  f.n++;if(f.n>=5){f.n=0;f.until=Date.now()+30000;fail('PIN incorrecto. Esperá 30 segundos para volver a intentar.');}
+  fail('PIN incorrecto.');
+}
+function pinValidate(pin,req){
+  pin=String(pin==null?'':pin).trim();
+  if(!pin){if(req)fail('Elegí un PIN de 4 a 8 números.');return null;}
+  if(!PIN_RE.test(pin))fail('El PIN tiene que tener entre 4 y 8 números.');
+  if(/^(\d)\1+$/.test(pin)||pin==='1234'||pin==='12345'||pin==='123456')fail('Ese PIN es demasiado fácil de adivinar. Elegí otro.');
+  return pin;
+}
+function firstSetup(d){
+  if(IS_DEMO||S.users.length)fail('El sistema ya fue configurado.');
+  const name=txt(d.name,2,60,'El nombre del negocio');
+  const wa=String(d.wa||'').trim();if(waDigits(wa).length<8)fail('Escribí el WhatsApp del negocio (con característica).');
+  const mail=String(d.mail||'').trim();if(mail&&!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(mail))fail('El correo no es válido.');
+  const cuit=String(d.cuit||'').trim();if(cuit&&!cuitOk(cuit))fail('El CUIT no es válido (11 números, con su dígito verificador).');
+  const admin=txt(d.adminName,3,60,'Tu nombre');
+  const pin=pinValidate(d.pin,true);if(String(d.pin2||'').trim()!==pin)fail('Los dos PIN no coinciden.');
+  Object.assign(S.cfg.shop,{name,legal:String(d.legal||'').trim().slice(0,80),cuit:cuit.slice(0,20),addr:String(d.addr||'').trim().slice(0,100),wa:wa.slice(0,25),phone:String(d.phone||'').trim().slice(0,25),mail,hours:String(d.hours||'').trim().slice(0,120),fiscal:''});
+  const u={id:'u-admin',name:admin,role:'admin',active:true,pinHash:pinHash('u-admin',pin)};
+  S.users.push(u);SESSION.uid=u.id;try{localStorage.setItem(UIDKEY,u.id);}catch(e){}
+  seedCatalog();
+  audit('CONFIGURACION_INICIAL',name);emitChange();
+}
+function setupHtml(){
+  const s=S.cfg.shop;
+  return '<div class="pub"><div class="wrap"><div class="hero"><div class="row" style="gap:12px">'+LOGO.replace('width="38" height="38"','width="52" height="52"')+'<div><h1>Bienvenido</h1><p class="mut" style="margin:0">Configuración inicial del sistema</p></div></div></div>'
+   +'<form class="card" id="setf" autocomplete="off" novalidate><h2 style="margin-bottom:6px">1. Datos del negocio</h2><p class="mut sm">Salen en los comprobantes. Después los podés cambiar en Configuración.</p>'
+   +'<div class="grid g2">'+fld('Nombre del negocio *','<input type="text" id="st-n" maxlength="60" value="'+esc(s.name)+'">')+fld('WhatsApp del negocio *','<input type="text" inputmode="tel" id="st-w" maxlength="25" placeholder="Con característica, ej.: 387 4xx-xxxx">')
+   +fld('Razón social','<input type="text" id="st-l" maxlength="80">')+fld('CUIT','<input type="text" inputmode="numeric" id="st-c" maxlength="13" placeholder="Opcional">')
+   +fld('Dirección','<input type="text" id="st-a" maxlength="100">')+fld('Teléfono','<input type="text" inputmode="tel" id="st-p" maxlength="25">')
+   +fld('Correo','<input type="email" id="st-m" maxlength="80">')+fld('Horario de atención','<input type="text" id="st-h" maxlength="120" placeholder="Ej.: Lun a Vie 9 a 13 y 16:30 a 20:30">')+'</div>'
+   +'<h2 style="margin:18px 0 6px">2. Administrador</h2><p class="mut sm">Es quien configura el sistema y ve todo. Después podés crear al resto del equipo (mostrador y técnicos), cada uno con su PIN.</p>'
+   +'<div class="grid g3">'+fld('Tu nombre *','<input type="text" id="st-u" maxlength="60">')+fld('PIN (4 a 8 números) *','<input type="password" inputmode="numeric" id="st-pin" maxlength="8" autocomplete="new-password">')+fld('Repetí el PIN *','<input type="password" inputmode="numeric" id="st-pin2" maxlength="8" autocomplete="new-password">')+'</div>'
+   +'<div class="alert info" style="margin-top:12px"><span>'+ic('alert',18)+'</span><span><b>Importante.</b> Los datos se guardan en este navegador de esta computadora. Descargá una copia de seguridad seguido (Configuración → Datos). El PIN evita usos por error en el mostrador; no es seguridad de nube.</span></div>'
+   +'<div id="st-err" role="alert" class="alert bad hide" style="margin-top:12px"></div>'
+   +'<div class="row" style="margin-top:14px"><button class="btn p lg" type="submit">'+ic('check',18)+'Empezar a usar el sistema</button></div></form>'
+   +'<div style="margin-top:16px">'+vbBanner()+'</div></div></div>';
+}
+function setupBind(){
+  const f=$('#setf');if(!f)return;
+  f.addEventListener('submit',e=>{e.preventDefault();const g=i=>$(i).value;const box=$('#st-err');
+    try{firstSetup({name:g('#st-n'),wa:g('#st-w'),legal:g('#st-l'),cuit:g('#st-c'),addr:g('#st-a'),phone:g('#st-p'),mail:g('#st-m'),hours:g('#st-h'),adminName:g('#st-u'),pin:g('#st-pin'),pin2:g('#st-pin2')});
+      saveNow().then(()=>{location.hash='#panel/resumen';applyRoute();toast('Listo. Ya podés cargar tu primer cliente y tu inventario.','ok');});
+    }catch(x){if(x instanceof VBErr){box.textContent=x.message;box.classList.remove('hide');box.focus&&box.focus();}else throw x;}});
+}
+/* ---- ingreso con PIN ---- */
+function loginWithPin(uid){
+  const u=userById(uid);if(!u)return;
+  const enter=()=>{SESSION.uid=u.id;try{localStorage.setItem(UIDKEY,u.id);}catch(e){}audit('SESION_INICIO','Ingreso de '+u.name);scanSla();location.hash='#panel/resumen';};
+  if(!u.pinHash){enter();return;}
+  let hh=null;
+  hh=modal({title:'Ingresá tu PIN · '+u.name,small:true,html:fld('PIN','<input type="password" inputmode="numeric" id="lg-pin" maxlength="8" autocomplete="off">')+'<p class="mut sm" style="margin:6px 0 0">¿Te olvidaste el PIN? Pedile al administrador que lo cambie en Configuración → Usuarios.</p>',
+    buttons:[{label:'Cancelar'},{label:'Ingresar',cls:'p',onClick:h=>{pinCheck(u,h.$('#lg-pin').value);enter();}}],
+    onOpen:h=>{const i=h.$('#lg-pin');if(i){i.focus();i.addEventListener('keydown',ev=>{if(ev.key==='Enter'){ev.preventDefault();h.submit?h.submit():h.$('footer .btn.p').click();}});}}});
+}
+/* ---- copia de seguridad: recordatorio ---- */
+function backupAlert(){
+  if(IS_DEMO||!can('config'))return '';
+  if(!(S.orders.length||S.sales.length||S.clients.length))return '';
+  const last=S.cfg.lastBackup||0;if(last&&now()-last<7*DAY)return '';
+  return '<div class="alert warn" role="alert" style="margin-bottom:14px"><span>'+ic('alert',18)+'</span><span><b>Hacé una copia de seguridad.</b> '+(last?'La última fue el '+esc(fdate(last))+'.':'Todavía no descargaste ninguna.')+' Los datos están sólo en este navegador. <button type="button" class="btn xs" data-act="bkExport">Descargar copia ahora</button></span></div>';
+}
+ACTS.bkWipe=()=>confirmBox({title:'Borrar todos los datos',html:'Se borran <b>todos</b> los datos de este navegador (órdenes, clientes, inventario, caja, usuarios). Descargá una copia antes. No se puede deshacer.',confirmWord:'BORRAR',danger:true,ok:'Borrar todo',onOk:()=>{need('config');S=emptyState();SESSION.uid=null;try{localStorage.removeItem(UIDKEY);}catch(e){}saveNow().then(()=>{location.hash='#inicio';applyRoute();});}});
+
+/* =====================================================================
    DATOS DE EJEMPLO (demo). Se generan USANDO las funciones del dominio
    con un reloj simulado de 30 días: por eso stock, caja, auditoría y
    avisos son coherentes entre sí. Todo es ficticio.
@@ -2478,13 +2565,8 @@ function demoPhoto(label,c1,c2){
   g.fillStyle='rgba(255,255,255,.85)';g.fillRect(40,60,240,110);g.fillStyle='#334155';g.font='bold 18px sans-serif';g.textAlign='center';g.fillText(label,160,122);
   g.font='13px sans-serif';g.fillText('FOTO DE EJEMPLO',160,148);return cv.toDataURL('image/png');
 }
-function seedDemo(){
-  S=emptyState();SEEDING=true;const realBase=now();const base=realBase;
-  const day0=startOfDay(base);
-  /* ---- usuarios ---- */
-  S.users.push({id:'u-admin',name:'Marcos Rivera',role:'admin',active:true},{id:'u-sup',name:'Lucía Fernández',role:'supervisor',active:true},{id:'u-mos',name:'Camila Torres',role:'mostrador',active:true},
-    {id:'u-t1',name:'Diego Paz',role:'tecnico',active:true,commissionPct:30},{id:'u-t2',name:'Sofía Luna',role:'tecnico',active:true,commissionPct:30},{id:'u-t3',name:'Mateo Ríos',role:'tecnico',active:true,commissionPct:35});
-  SESSION.uid='u-admin';
+/* Catálogo base (rubros, servicios de ejemplo y rubros de inventario): lo usan la demo y la versión real. */
+function seedCatalog(){
   /* ---- rubros financieros ---- */
   [['Reparaciones y servicios','ingreso',true],['Ventas de mostrador','ingreso',true],['Cobro de cuenta corriente','ingreso',true],['Reintegros a clientes','egreso',true],
    ['Compra de insumos y repuestos','egreso',false],['Servicios (luz, internet)','egreso',false],['Alquiler del local','egreso',false],['Sueldos y comisiones','egreso',false],['Aporte del dueño','ingreso',false],['Retiro del dueño','egreso',false],['Varios','ambos',false]]
@@ -2496,7 +2578,16 @@ function seedDemo(){
    .forEach(s=>S.services.push({id:s[0],name:s[1],priceCents:$p(s[2]),estMin:s[3],warrantyDays:s[4],active:true}));
   /* ---- rubros de inventario ---- */
   const CATS=[['Memorias RAM','#6366f1'],['Discos y SSD','#0ea5e9'],['Pantallas','#14b8a6'],['Baterías y cargadores','#f59e0b'],['Teclados y periféricos','#8b5cf6'],['Fuentes y placas','#ef4444'],['Insumos de taller','#64748b'],['Tintas e impresión','#ec4899'],['Accesorios de venta','#22c55e'],['Herramientas','#78716c']];
-  CATS.forEach(c=>catSave({name:c[0],color:c[1]}));const cat=n=>S.cats.find(c=>c.name===n).id;
+  CATS.forEach(c=>catSave({name:c[0],color:c[1]}));
+}
+function seedDemo(){
+  S=emptyState();SEEDING=true;const realBase=now();const base=realBase;
+  const day0=startOfDay(base);
+  /* ---- usuarios ---- */
+  S.users.push({id:'u-admin',name:'Marcos Rivera',role:'admin',active:true},{id:'u-sup',name:'Lucía Fernández',role:'supervisor',active:true},{id:'u-mos',name:'Camila Torres',role:'mostrador',active:true},
+    {id:'u-t1',name:'Diego Paz',role:'tecnico',active:true,commissionPct:30},{id:'u-t2',name:'Sofía Luna',role:'tecnico',active:true,commissionPct:30},{id:'u-t3',name:'Mateo Ríos',role:'tecnico',active:true,commissionPct:35});
+  SESSION.uid='u-admin';
+  seedCatalog();const cat=n=>S.cats.find(c=>c.name===n).id;
   /* ---- proveedores (CUIT con dígito verificador válido; ficticios) ---- */
   const SUP=[['TecnoMayorista Norte S.R.L.','3071234567','Responsable Inscripto','387 555-0201','ventas@tecnomayorista.example','Av. Ficticia 100, Salta'],['Compu Distribuidora del NOA S.A.','3070987654','Responsable Inscripto','387 555-0202','pedidos@compunoa.example','Calle Ejemplo 455, Salta'],['Insumos y Tintas Salta','2720304050','Monotributista','387 555-0203','tintas@insumos.example','Mitre 321, Salta']];
   const sup=[];
@@ -2684,26 +2775,27 @@ function seedDemo(){
    ===================================================================== */
 let _bootWarn=null;
 function resetDemo(){
-  _noSave=false;S=seedDemo();SESSION.uid=null;try{localStorage.removeItem('vbc_uid');}catch(e){}
+  _noSave=false;S=seedDemo();SESSION.uid=null;try{localStorage.removeItem(UIDKEY);}catch(e){}
   saveNow().then(()=>{location.hash='#acceso';applyRoute();});
 }
 async function boot(){
   try{
     await DBX.open();const st=await DBX.get('state');
     if(st&&st.v&&st.seeded!==undefined){S=migrate(st);}
-    else{S=seedDemo();await saveNow();}
+    else{S=IS_DEMO?seedDemo():emptyState();await saveNow();}
   }catch(e){
-    console.warn('Sin almacenamiento local: la demo funciona pero no guarda.',e);_noSave=true;_bootWarn='Este navegador no permite guardar datos: la demo funciona, pero al cerrar la pestaña se pierde lo que cargues.';
-    if(!S)S=seedDemo();
+    console.warn('Sin almacenamiento local: el sistema funciona pero no guarda.',e);_noSave=true;_bootWarn='Este navegador no permite guardar datos: el sistema funciona, pero al cerrar la pestaña se pierde lo que cargues.';
+    if(!S)S=IS_DEMO?seedDemo():emptyState();
   }
-  try{const u=localStorage.getItem('vbc_uid');if(u&&userById(u)&&userById(u).active!==false)SESSION.uid=u;}catch(e){}
+  try{const u=localStorage.getItem(UIDKEY);if(u&&userById(u)&&userById(u).active!==false)SESSION.uid=u;}catch(e){}
   if(SESSION.uid){try{if(scanSla())scheduleSave();}catch(e){console.error(e);}}
+  if(!IS_DEMO){try{if(navigator.storage&&navigator.storage.persist)navigator.storage.persist();}catch(e){}}
   applyRoute();
   if(_bootWarn)toast(_bootWarn,'bad');
   window.addEventListener('beforeunload',()=>{try{saveNow();}catch(e){}});
   document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='hidden')saveNow();});
 }
-window.VBC={get S(){return S;},flush:()=>saveNow(),sha256,auditVerify,reset:()=>resetDemo(),login:id=>{SESSION.uid=id;try{localStorage.setItem('vbc_uid',id);}catch(e){}},ready:null};
+window.VBC={get S(){return S;},flush:()=>saveNow(),sha256,auditVerify,reset:()=>resetDemo(),login:id=>{SESSION.uid=id;try{localStorage.setItem(UIDKEY,id);}catch(e){}},ready:null};
 window.VBC.ready=boot().catch(e=>{console.error('BOOT',e);document.getElementById('root').innerHTML='<div class="pub"><div class="wrap"><div class="alert bad" role="alert">No se pudo iniciar la aplicación: '+String(e&&e.message||e).replace(/[<>&]/g,'')+'</div></div></div>';});
 
 </script>

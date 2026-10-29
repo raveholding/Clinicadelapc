@@ -5,7 +5,7 @@
    permisos, auditoría encadenada y notificaciones internas.
    Desarrollado por VINCULAR BUSINESS · (387) 4484132 · vincularbusiness@gmail.com
    ===================================================================== */
-const APP={name:'Clínica de la PC',ver:'V26 · taller 1.0',variant:'demo',tz:'America/Argentina/Salta',build:'__BUILD__'};
+const APP={name:'Clínica de la PC',ver:'V26 · taller 1.0',variant:'__VARIANT__',tz:'America/Argentina/Salta',build:'__BUILD__'};
 const VB={name:'VINCULAR BUSINESS',cel:'(387) 4484132',wa:'https://wa.me/5493874484132',tel:'tel:+5493874484132',mail:'vincularbusiness@gmail.com',lema:'Tu idea, en buenas manos.'};
 
 /* ---------- utilidades ---------- */
@@ -105,6 +105,8 @@ const ROLES={
   tecnico:{label:'Técnico',perms:['orders_work','request','tools']}
 };
 const SESSION={uid:null};
+const UIDKEY=APP.variant==='demo'?'vbc_uid':'vbc_uid_real';
+const IS_DEMO=APP.variant==='demo';
 let S=null; // estado
 function curUser(){return S&&S.users.find(u=>u.id===SESSION.uid)||null;}
 function can(p,u){u=u||curUser();if(!u)return false;const r=ROLES[u.role];return !!r&&(r.perms==='*'||r.perms.includes(p));}
@@ -116,7 +118,7 @@ const techs=()=>S.users.filter(u=>u.role==='tecnico'&&u.active!==false);
 /* ---------- configuración por defecto ---------- */
 function defCfg(){return {
   shop:{name:'Clínica de la PC',legal:'[PENDIENTE]',cuit:'[PENDIENTE]',addr:'Av. Ejemplo 1234, Salta Capital',wa:'387 555-0100',phone:'(387) 555-0100',mail:'contacto@clinicadelapc.example',hours:'Lun a Vie 9:00–13:00 y 16:30–20:30 · Sáb 9:00–13:00',fiscal:'[PENDIENTE]'},
-  rateHourCents:$p(28000),
+  rateHourCents:$p(28000),lastBackup:0,
   quoteValidDays:7,
   warrantyDays:30,
   storedDays:15,
@@ -163,7 +165,7 @@ function nid(p){S.seq.id++;return p+S.seq.id.toString(36);}
 
 /* ---------- persistencia (IndexedDB, un solo registro cifrado a futuro en la nube) ---------- */
 const DBX={db:null,
-  open(){return new Promise((res,rej)=>{try{const r=indexedDB.open('vb-clinica-pc',1);r.onupgradeneeded=()=>r.result.createObjectStore('kv');r.onsuccess=()=>{this.db=r.result;res(r.result);};r.onerror=()=>rej(r.error);}catch(e){rej(e);}});},
+  open(){return new Promise((res,rej)=>{try{const r=indexedDB.open(APP.variant==='demo'?'vb-clinica-pc':'vb-clinica-pc-real',1);r.onupgradeneeded=()=>r.result.createObjectStore('kv');r.onsuccess=()=>{this.db=r.result;res(r.result);};r.onerror=()=>rej(r.error);}catch(e){rej(e);}});},
   get(k){return new Promise((res,rej)=>{const t=this.db.transaction('kv').objectStore('kv').get(k);t.onsuccess=()=>res(t.result);t.onerror=()=>rej(t.error);});},
   set(k,v){return new Promise((res,rej)=>{const t=this.db.transaction('kv','readwrite');t.objectStore('kv').put(v,k);t.oncomplete=()=>res();t.onerror=()=>rej(t.error);t.onabort=()=>rej(t.error);});},
   del(k){return new Promise((res,rej)=>{const t=this.db.transaction('kv','readwrite');t.objectStore('kv').delete(k);t.oncomplete=()=>res();t.onerror=()=>rej(t.error);});}

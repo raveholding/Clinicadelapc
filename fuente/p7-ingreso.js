@@ -33,7 +33,7 @@ SCREENS.ingreso={title:'Nueva recepción',perm:'intake',noAuto:true,view(){
    +'<div class="field"><label for="d-prom">Fecha estimada de entrega</label><input type="date" id="d-prom"></div></div></section>'
   +'<section class="card" aria-labelledby="in7"><h2 id="in7" style="margin-bottom:12px">7 · Conformidad del cliente</h2><details><summary style="cursor:pointer;min-height:44px;display:flex;align-items:center">Ver condiciones del servicio</summary><p class="sm mut">'+esc(S.cfg.terms)+'</p></details>'
    +'<label class="chk"><input type="checkbox" id="d-terms"><span>El cliente leyó y acepta las condiciones del servicio *</span></label>'
-   +'<div class="field" style="margin-top:8px"><span class="lbl">Firma del cliente (opcional en la demo)</span><canvas id="sig" class="sig" width="840" height="260" aria-label="Espacio para firmar con el dedo o el mouse"></canvas><div class="row"><button type="button" class="btn xs" data-act="sigClear">Borrar firma</button></div></div></section>'
+   +'<div class="field" style="margin-top:8px"><span class="lbl">Firma del cliente (opcional)</span><canvas id="sig" class="sig" width="840" height="260" aria-label="Espacio para firmar con el dedo o el mouse"></canvas><div class="row"><button type="button" class="btn xs" data-act="sigClear">Borrar firma</button></div></div></section>'
   +'<div class="row" style="position:sticky;bottom:0;background:linear-gradient(180deg,transparent,var(--bg) 30%);padding:14px 0"><button type="button" class="btn p lg" data-act="inSubmit">'+ic('check',20)+'Guardar y generar orden</button><button type="button" class="btn lg" data-act="inCancel">Limpiar formulario</button></div></form>';
 },after(){const cv=$('#sig');if(cv)UI.sig=sigPad(cv);}};
 function inClientHtml(){
